@@ -32,6 +32,7 @@ import {
   revealInFinderAtom,
   copyFilePathAtom,
 } from '../../store/atoms/appSettings';
+import { diffPeekSizeAtom, setDiffPeekSizeAtom } from '../../store/atoms/diffPeekSizeAtoms';
 import {
   workstreamStagedFilesAtom,
   setWorkstreamStagedFilesAtom,
@@ -154,6 +155,19 @@ export const FilesEditedSidebar: React.FC<FilesEditedSidebarProps> = React.memo(
   const openInExternalEditor = useSetAtom(openInExternalEditorAtom);
   const revealInFinder = useSetAtom(revealInFinderAtom);
   const copyFilePath = useSetAtom(copyFilePathAtom);
+
+  // Diff peek popover (shared persisted size with the git extension and commit widget)
+  const diffPeekSize = useAtomValue(diffPeekSizeAtom);
+  const setDiffPeekSize = useSetAtom(setDiffPeekSizeAtom);
+  const handleGetDiff = useCallback(async (filePath: string) => {
+    const gitWorkspacePath = worktreePath || workspacePath;
+    if (!gitWorkspacePath) return null;
+    return await window.electronAPI.invoke(
+      'git:file-diff',
+      gitWorkspacePath,
+      { path: filePath, group: 'working' as const }
+    ) as { unifiedDiff: string; isBinary: boolean };
+  }, [worktreePath, workspacePath]);
 
   const setGroupByDirectory = useCallback((value: boolean) => {
     if (effectiveWorkspacePath) {
@@ -553,6 +567,10 @@ export const FilesEditedSidebar: React.FC<FilesEditedSidebarProps> = React.memo(
             totalUncommittedCount={worktreeId ? worktreeChangedFiles.length : allUncommittedFiles.length}
             onShowAllUncommitted={handleShowAllUncommitted}
             scopeMode={fileScopeMode}
+            onGetDiff={isGitRepo ? handleGetDiff : undefined}
+            diffPeekWidth={diffPeekSize?.width}
+            diffPeekHeight={diffPeekSize?.height}
+            onDiffPeekResize={setDiffPeekSize}
           />
         </div>
       </div>

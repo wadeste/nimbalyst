@@ -14,20 +14,13 @@
  * - tool.result containing "cancelled" means user cancelled
  */
 
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useAtomValue } from 'jotai';
 import { usePostHog } from 'posthog-js/react';
 import { MaterialSymbol } from '../../../icons/MaterialSymbol';
 import type { CustomToolWidgetProps } from './index';
 import { interactiveWidgetHostAtom } from '../../../../store/atoms/interactiveWidgetHost';
-import { DiffPeekPopover } from '../../../git/DiffPeekPopover';
-
-type DiffCacheEntry = {
-  diff: string;
-  isBinary: boolean;
-  loading: boolean;
-  error: string | null;
-};
+import { useDiffPeek } from '../../../git/useDiffPeek';
 
 // ============================================================
 // File Status Types
@@ -528,100 +521,13 @@ export const GitCommitConfirmationWidget: React.FC<CustomToolWidgetProps> = ({
     error?: string;
   } | null>(null);
 
-  // Diff peek state. The popover renders for whichever of pinnedFile or peekedFile
-  // is set (peek wins if both are set, since peek is the more recent intent).
-  const [peekedFile, setPeekedFile] = useState<string | null>(null);
-  const [pinnedFile, setPinnedFile] = useState<string | null>(null);
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
-  const rowElsRef = useRef<Map<string, HTMLElement>>(new Map());
-  const [diffCache, setDiffCache] = useState<Map<string, DiffCacheEntry>>(new Map());
-
-  const peekSupported = typeof host?.gitFileDiff === 'function';
-  const popoverFile = peekedFile ?? pinnedFile;
-
-  const registerRowEl = useCallback((path: string, el: HTMLElement | null) => {
-    if (el) rowElsRef.current.set(path, el);
-    else rowElsRef.current.delete(path);
-  }, []);
-
-  // Fetch the diff for the active popover file (cached per session).
-  useEffect(() => {
-    if (!popoverFile || !host?.gitFileDiff) return;
-    const cached = diffCache.get(popoverFile);
-    if (cached && !cached.loading) return;
-
-    setDiffCache((prev) => {
-      const next = new Map(prev);
-      next.set(popoverFile, { diff: '', isBinary: false, loading: true, error: null });
-      return next;
-    });
-
-    let cancelled = false;
-    host.gitFileDiff(popoverFile)
-      .then((result) => {
-        if (cancelled) return;
-        setDiffCache((prev) => {
-          const next = new Map(prev);
-          if (result) {
-            next.set(popoverFile, {
-              diff: result.unifiedDiff,
-              isBinary: result.isBinary,
-              loading: false,
-              error: null,
-            });
-          } else {
-            next.set(popoverFile, {
-              diff: '',
-              isBinary: false,
-              loading: false,
-              error: 'Diff not available on this platform',
-            });
-          }
-          return next;
-        });
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setDiffCache((prev) => {
-          const next = new Map(prev);
-          next.set(popoverFile, {
-            diff: '',
-            isBinary: false,
-            loading: false,
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return next;
-        });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-    // diffCache is intentionally excluded — we only want to refetch when the
-    // popover target changes, not on every cache write.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [popoverFile, host]);
-
-  const closePeek = useCallback(() => {
-    setPeekedFile(null);
-    setPinnedFile(null);
-    setAnchorRect(null);
-  }, []);
-
-  const promotePeekToPin = useCallback(() => {
-    setPeekedFile((prev) => {
-      if (prev) setPinnedFile(prev);
-      return null;
-    });
-  }, []);
-
-  const togglePeekForFile = useCallback((filePath: string) => {
-    const rowEl = rowElsRef.current.get(filePath);
-    if (rowEl) setAnchorRect(rowEl.getBoundingClientRect());
-    // Toggle: if already pinned to this file, close. Otherwise pin to it.
-    setPinnedFile((prev) => (prev === filePath ? null : filePath));
-    setPeekedFile(null);
-  }, []);
+  // Diff peek state — encapsulated by useDiffPeek hook (shared with FilesEditedSidebar).
+  const { peekSupported, registerRowEl, togglePeek, isActive, popoverElement } = useDiffPeek({
+    getDiff: host?.gitFileDiff,
+    width: host?.diffPeekSize?.width,
+    height: host?.diffPeekSize?.height,
+    onResize: host?.setDiffPeekSize,
+  });
 
   // Build directory tree from files
   const directoryTree = useMemo(() => {
@@ -719,7 +625,7 @@ export const GitCommitConfirmationWidget: React.FC<CustomToolWidgetProps> = ({
     const isSelected = filesToStage.has(filePath);
     const fileName = filePath.split('/').pop() || filePath;
     const status = fileStatusMap.get(filePath) || 'modified';
-    const isPinned = pinnedFile === filePath;
+    const isPinned = isActive(filePath);
     return (
       <div
         key={filePath}
@@ -770,7 +676,7 @@ export const GitCommitConfirmationWidget: React.FC<CustomToolWidgetProps> = ({
             title={isPinned ? 'Hide diff' : 'Show diff'}
             onClick={(e) => {
               e.stopPropagation();
-              togglePeekForFile(filePath);
+              togglePeek(filePath);
             }}
           >
             <MaterialSymbol icon="difference" size={14} />
@@ -1180,25 +1086,7 @@ export const GitCommitConfirmationWidget: React.FC<CustomToolWidgetProps> = ({
         </div>
       </div>
 
-      {popoverFile && anchorRect && (() => {
-        const cached = diffCache.get(popoverFile);
-        return (
-          <DiffPeekPopover
-            anchorRect={anchorRect}
-            filePath={popoverFile}
-            mode={peekedFile ? 'peek' : 'pinned'}
-            diff={cached?.diff ?? ''}
-            isBinary={cached?.isBinary ?? false}
-            loading={cached?.loading ?? true}
-            error={cached?.error ?? null}
-            onClose={closePeek}
-            onPin={promotePeekToPin}
-            width={host?.diffPeekSize?.width}
-            height={host?.diffPeekSize?.height}
-            onResize={host?.setDiffPeekSize}
-          />
-        );
-      })()}
+      {popoverElement}
     </div>
   );
 };

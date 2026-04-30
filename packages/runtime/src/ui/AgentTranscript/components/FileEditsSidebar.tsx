@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import type { FileEditSummary } from '../types';
 import { MaterialSymbol } from '../../icons/MaterialSymbol';
+import { useDiffPeek } from '../../git/useDiffPeek';
 
 interface FileEditsSidebarProps {
   fileEdits: FileEditSummary[];
@@ -48,6 +49,17 @@ interface FileEditsSidebarProps {
   onShowAllUncommitted?: () => void;
   /** Current scope mode - used to customize empty state messages */
   scopeMode?: 'current-changes' | 'session-files' | 'all-changes';
+  /**
+   * Fetch the unified diff for a file (HEAD vs working tree).
+   * When provided, each row gets a hover-revealed peek icon that opens an inline diff popover.
+   */
+  onGetDiff?: (filePath: string) => Promise<{ unifiedDiff: string; isBinary: boolean } | null>;
+  /** Persisted popover width (px). Shared across diff peek surfaces. */
+  diffPeekWidth?: number;
+  /** Persisted popover height (px). Shared across diff peek surfaces. */
+  diffPeekHeight?: number;
+  /** Called (debounced) when the user resizes the popover. */
+  onDiffPeekResize?: (size: { width: number; height: number }) => void;
 }
 
 interface ContextMenuState {
@@ -94,8 +106,19 @@ export const FileEditsSidebar: React.FC<FileEditsSidebarProps> = ({
   onShowSessionFiles,
   totalUncommittedCount,
   onShowAllUncommitted,
-  scopeMode = 'current-changes'
+  scopeMode = 'current-changes',
+  onGetDiff,
+  diffPeekWidth,
+  diffPeekHeight,
+  onDiffPeekResize,
 }) => {
+  // Diff peek state — shared with GitCommitConfirmationWidget via useDiffPeek.
+  const { peekSupported, registerRowEl, togglePeek, isActive, popoverElement } = useDiffPeek({
+    getDiff: onGetDiff,
+    width: diffPeekWidth,
+    height: diffPeekHeight,
+    onResize: onDiffPeekResize,
+  });
   // Default showRootCheckbox to true when showCheckboxes is true
   const shouldShowRootCheckbox = showRootCheckbox ?? showCheckboxes;
   const [gitStatus, setGitStatus] = useState<Record<string, FileGitStatus>>({});
@@ -579,6 +602,7 @@ export const FileEditsSidebar: React.FC<FileEditsSidebarProps> = ({
     const tooltip = getFileStatusTooltip(filePath, operation);
     const committed = isFileCommitted(filePath);
     const isSelected = selectedFiles?.has(filePath) ?? false;
+    const isPinned = isActive(filePath);
 
     // Handler to toggle file selection without triggering file click
     const handleCheckboxClick = (e: React.MouseEvent) => {
@@ -593,21 +617,27 @@ export const FileEditsSidebar: React.FC<FileEditsSidebarProps> = ({
     };
 
     return (
-      <button
+      <div
         key={filePath}
+        ref={(el) => registerRowEl(filePath, el)}
         draggable
         onDragStart={handleDragStart}
-        onClick={() => {
-          // Don't open deleted files - they don't exist anymore
-          if (!isDeleted) {
-            onFileClick?.(filePath);
-          }
-        }}
         onContextMenu={(e) => handleContextMenu(e, filePath)}
-        className={`file-edits-sidebar__file w-full text-left px-2 py-0.5 rounded border border-transparent transition-all bg-transparent hover:bg-[var(--nim-bg-hover)] hover:border-[var(--nim-border)] ${hasPendingReview ? 'bg-[rgba(251,191,36,0.08)] border-[rgba(251,191,36,0.2)] hover:bg-[rgba(251,191,36,0.12)] hover:border-[rgba(251,191,36,0.3)]' : ''}`}
+        className={`file-edits-sidebar__file group w-full flex items-center gap-1 px-2 py-0.5 rounded border border-transparent transition-all bg-transparent hover:bg-[var(--nim-bg-hover)] hover:border-[var(--nim-border)] ${
+          isPinned ? 'bg-[var(--nim-bg-hover)] border-[var(--nim-primary)]' : ''
+        } ${hasPendingReview ? 'bg-[rgba(251,191,36,0.08)] border-[rgba(251,191,36,0.2)] hover:bg-[rgba(251,191,36,0.12)] hover:border-[rgba(251,191,36,0.3)]' : ''}`}
         title={tooltip}
       >
-        <div className="file-edits-sidebar__file-content flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => {
+            // Don't open deleted files - they don't exist anymore
+            if (!isDeleted) {
+              onFileClick?.(filePath);
+            }
+          }}
+          className="file-edits-sidebar__file-main flex-1 min-w-0 flex items-center gap-1 text-left bg-transparent border-0 p-0 cursor-pointer"
+        >
           {/* Placeholder for expand caret (to align with folder rows) - only in directory tree */}
           {isInDirectory && (
             <div className="file-edits-sidebar__caret-placeholder w-4 h-4 shrink-0" />
@@ -652,8 +682,24 @@ export const FileEditsSidebar: React.FC<FileEditsSidebarProps> = ({
               />
             )}
           </div>
-        </div>
-      </button>
+        </button>
+        {peekSupported && !isDeleted && (
+          <button
+            type="button"
+            data-testid="files-edited-file-peek"
+            className={`file-edits-sidebar__peek-btn shrink-0 w-5 h-5 flex items-center justify-center rounded text-[var(--nim-text-faint)] hover:text-[var(--nim-primary)] hover:bg-[var(--nim-bg-tertiary)] transition-opacity bg-transparent border-0 cursor-pointer ${
+              isPinned ? 'opacity-100 text-[var(--nim-primary)]' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
+            }`}
+            title={isPinned ? 'Hide diff' : 'Show diff'}
+            onClick={(e) => {
+              e.stopPropagation();
+              togglePeek(filePath);
+            }}
+          >
+            <MaterialSymbol icon="difference" size={14} />
+          </button>
+        )}
+      </div>
     );
   };
 
@@ -922,6 +968,7 @@ export const FileEditsSidebar: React.FC<FileEditsSidebarProps> = ({
         )}
       </div>
       {renderContextMenu()}
+      {popoverElement}
     </div>
   );
 };
