@@ -278,7 +278,8 @@ The `known_error` event uses an `errorId` property to identify specific error co
 | `developer_mode_changed` | `App.tsx`<br/>`AdvancedPanel.tsx` | User changes developer mode setting (initial or subsequent) | `developer_mode` (boolean)<br/>`source` (onboarding/settings)<br/>`is_initial` (boolean) | (pending release) |  |
 | `unified_onboarding_skipped` | `App.tsx` | User skips the unified onboarding flow | None | (pending release) | Replaces `onboarding_skipped` |
 | ~~`feature_walkthrough_completed`~~ | ~~`FeatureWalkthrough.tsx`~~ | ~~User completes or skips the feature walkthrough~~ | ~~`total_time_ms`~~~~<br/>~~~~`slide_times`~~~~ (object with editor/mockup/agent keys)<br/>~~~~`skipped`~~~~ (boolean)<br/>~~~~`skipped_at_slide`~~~~ (editor/mockup/agent, only if skipped)~~ | v0.45.25 (2025-11-14) | **DEPRECATED**: No longer sent; walkthrough slides removed in unified onboarding |
-| ~~`onboarding_completed`~~ | ~~`OnboardingDialog.tsx`~~ | ~~User completes the role/email onboarding dialog~~ | ~~`user_role`~~~~<br/>~~~~`custom_role_provided`~~~~<br/>~~~~`custom_role_text`~~~~<br/>~~~~`email_provided`~~ | v0.45.25 (2025-11-14) | **DEPRECATED**: Replaced by `unified_onboarding_completed` |
+| ~~`onboarding_completed`~~ | ~~`OnboardingDialog.tsx`~~ | ~~User completes the role/email onboarding dialog~~ | ~~`user_role`~~~~<br/>~~~~`custom_role_provided`~~~~<br/>~~~~`custom_role_text`~~~~<br/>~~~~`email_provided`~~ | v0.45.25 (2025-11-14) | **DEPRECATED**: Replaced by `unified_onboarding_completed`, then re-used (see below) |
+| `onboarding_completed` | `useOnboarding.ts` | User completes the unified onboarding dialog (has role or referral data) | `user_role` (raw value, e.g. `developer`, `product_manager`, `other`)<br/>`custom_role_text` (only when user typed a custom role)<br/>`referral_source` (raw value, e.g. `search`, `social`, `ai`, `other`)<br/>`referral_ai_detail` (only for `ai` referral)<br/>`referral_other_detail` (only for `other` referral)<br/>`referral_social_detail` (only for `social` referral)<br/>`developer_mode` (boolean)<br/>`email_provided` (boolean) | (pending release) | Replaces programmatic `survey sent` for the Onboarding Profile Survey. Property names and raw values match the existing `Devs` / `Product Managers` / `role_other` cohorts. |
 | ~~`onboarding_deferred`~~ | ~~`App.tsx`~~ | ~~User clicks "Ask me later" on onboarding dialog~~ | ~~None~~ | v0.45.25 (2025-11-14) | **DEPRECATED**: Removed in unified onboarding |
 | ~~`onboarding_skipped`~~ | ~~`App.tsx`~~ | ~~User clicks "Never ask again" on onboarding dialog~~ | ~~None~~ | v0.45.25 (2025-11-14) | **DEPRECATED**: Replaced by `unified_onboarding_skipped` |
 | `claude_commands_toast_shown` | `App.tsx:894` | Claude commands install toast is displayed | None | v0.47.2 (2025-12-10) |  |
@@ -407,9 +408,13 @@ Person properties are attached to user profiles in PostHog via `posthog.people.s
 
 | Property | Type | Set By | Description |
 | --- | --- | --- | --- |
-| `email` | `string` | `App.tsx` (onboarding) | User's email address (if provided during onboarding) |
-| `user_role` | `string` | `App.tsx` (onboarding) | User's role (e.g., "Software Developer", "Designer") |
-| `referral_source` | `string` | `App.tsx` (onboarding) | How user heard about Nimbalyst (e.g., "Search", "Social Media") |
+| `email` | `string` | `useOnboarding.ts` | User's email address (if provided during onboarding) |
+| `user_role` | `string` | `useOnboarding.ts` | User's role as raw enum value (`developer`, `product_manager`, `designer`, `writer`, `researcher`, `marketing`, `sales`, `finance`, `student`, `hobbyist`, `other`). Cohorts and breakdowns filter on these exact values. |
+| `custom_role_text` | `string` | `useOnboarding.ts` | Free-text role typed by the user when they picked "Other" (only set in that case) |
+| `referral_source` | `string` | `useOnboarding.ts` | How user heard about Nimbalyst as raw enum value (`search`, `social`, `friend`, `ai`, `ad`, `other`) |
+| `referral_ai_detail` | `string` | `useOnboarding.ts` | Specific AI tool when `referral_source = 'ai'` |
+| `referral_other_detail` | `string` | `useOnboarding.ts` | Free-text detail when `referral_source = 'other'` |
+| `referral_social_detail` | `string` | `useOnboarding.ts` | Specific platform when `referral_source = 'social'` |
 | `developer_mode` | `boolean` | `App.tsx` (onboarding)<br/>`AdvancedPanel.tsx` (settings) | Whether developer mode is enabled |
 | `first_seen_version` | `string` | `index.ts` (first launch) | Set via `$set_once` - the app version when user first launched |
 | `is_dev_user` | `boolean` | `AnalyticsService.ts` | Set via `$set_once` - true for development/non-official builds |
@@ -423,7 +428,7 @@ Surveys are configured in PostHog and can be either popover (shown in-app) or AP
 
 | Survey ID | Name | Type | Questions | Submitted From |
 | --- | --- | --- | --- | --- |
-| `019becdc-8139-0000-0946-e76c18c36ef7` | Onboarding Profile Survey | API | 1. What best describes your role?<br/>2. How did you hear about Nimbalyst? | `App.tsx` (onboarding completion) |
+| ~~`019becdc-8139-0000-0946-e76c18c36ef7`~~ | ~~Onboarding Profile Survey~~ | ~~API~~ | ~~1. What best describes your role?<br/>2. How did you hear about Nimbalyst?~~ | ~~`useOnboarding.ts`~~ — **REMOVED**: replaced by `onboarding_completed` custom event |
 
 ## Privacy Requirements
 

@@ -73,7 +73,9 @@ export function useOnboarding({
     }
 
     if (posthog) {
-      // Set person properties (persist to user profile)
+      // Set person properties (persist to user profile). `user_role` and `referral_source`
+      // must be raw enum values so cohorts/insights can filter on them with exact match.
+      // Custom text from "Other" inputs goes into separate `*_text` properties.
       const personProperties: Record<string, string | boolean> = {
         developer_mode: data.developerMode,
       };
@@ -81,67 +83,61 @@ export function useOnboarding({
         personProperties.email = data.email;
       }
       if (data.role) {
-        personProperties.user_role = data.customRole || data.role;
+        personProperties.user_role = data.role;
+        if (data.customRole) {
+          personProperties.custom_role_text = data.customRole;
+        }
       }
       if (data.referralSource) {
-        personProperties.referral_source = data.referralSource;
         if (data.referralSource.startsWith('ai:')) {
+          personProperties.referral_source = 'ai';
           personProperties.referral_ai_detail = data.referralSource.substring('ai:'.length);
         } else if (data.referralSource.startsWith('other:')) {
+          personProperties.referral_source = 'other';
           personProperties.referral_other_detail = data.referralSource.substring('other:'.length);
+        } else if (data.referralSource.startsWith('social:')) {
+          personProperties.referral_source = 'social';
+          personProperties.referral_social_detail = data.referralSource.substring('social:'.length);
+        } else {
+          personProperties.referral_source = data.referralSource;
         }
       }
       posthog.people.set(personProperties);
 
-      // Submit survey response (role and referral source)
-      const surveyId = '019becdc-8139-0000-0946-e76c18c36ef7';
+      // Track onboarding completion with role and referral data as plain event properties.
+      // Property names and raw values must match existing PostHog cohorts (Devs, Product Managers,
+      // role_other) which filter on `onboarding_completed` events with `user_role = "developer"`,
+      // `"product_manager"`, `"other"`, etc.
       if (data.role || data.referralSource) {
-        const surveyPayload: Record<string, string> = {
-          $survey_id: surveyId,
-          $survey_name: 'Onboarding Profile Survey',
-        };
-        // Map role value to survey choice label
-        const roleLabels: Record<string, string> = {
-          developer: 'Software Developer',
-          product_manager: 'Product Manager',
-          designer: 'Designer',
-          writer: 'Writer / Content',
-          researcher: 'Researcher',
-          marketing: 'Marketing',
-          sales: 'Sales',
-          finance: 'Finance',
-          student: 'Student',
-          hobbyist: 'Hobbyist / Personal Use',
-          other: 'Other',
-        };
-        // Map referral value to survey choice label
-        const referralLabels: Record<string, string> = {
-          search: 'Search',
-          social: 'Social Media',
-          friend: 'Friend',
-          ai: 'AI',
-          ad: 'Ad',
-          other: 'Other',
+        const eventProps: Record<string, string | boolean> = {
+          developer_mode: data.developerMode,
+          email_provided: !!data.email,
         };
 
         if (data.role) {
-          surveyPayload['$survey_response'] = data.customRole || roleLabels[data.role] || data.role;
-        }
-        if (data.referralSource) {
-          // Handle social:Platform, ai:Detail, and other:CustomText formats
-          if (data.referralSource.startsWith('social:')) {
-            surveyPayload['$survey_response_1'] = referralLabels['social'] || data.referralSource;
-          } else if (data.referralSource.startsWith('ai:')) {
-            surveyPayload['$survey_response_1'] = referralLabels['ai'] || 'AI';
-            surveyPayload['referral_ai_detail'] = data.referralSource.substring('ai:'.length);
-          } else if (data.referralSource.startsWith('other:')) {
-            surveyPayload['$survey_response_1'] = referralLabels['other'] || 'Other';
-            surveyPayload['referral_other_detail'] = data.referralSource.substring('other:'.length);
-          } else {
-            surveyPayload['$survey_response_1'] = referralLabels[data.referralSource] || data.referralSource;
+          eventProps['user_role'] = data.role;
+          if (data.customRole) {
+            eventProps['custom_role_text'] = data.customRole;
           }
         }
-        posthog.capture('survey sent', surveyPayload);
+        if (data.referralSource) {
+          // Split prefixed referrals into raw category + detail field so cohorts can filter
+          // on the bare category value (e.g. "ai", "other", "social").
+          if (data.referralSource.startsWith('ai:')) {
+            eventProps['referral_source'] = 'ai';
+            eventProps['referral_ai_detail'] = data.referralSource.substring('ai:'.length);
+          } else if (data.referralSource.startsWith('other:')) {
+            eventProps['referral_source'] = 'other';
+            eventProps['referral_other_detail'] = data.referralSource.substring('other:'.length);
+          } else if (data.referralSource.startsWith('social:')) {
+            eventProps['referral_source'] = 'social';
+            eventProps['referral_social_detail'] = data.referralSource.substring('social:'.length);
+          } else {
+            eventProps['referral_source'] = data.referralSource;
+          }
+        }
+
+        posthog.capture('onboarding_completed', eventProps);
       }
 
       // Track mode selection event (initial)
