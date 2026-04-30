@@ -919,7 +919,14 @@ export function registerWorkspaceHandlers() {
 
     safeHandle('workspace:open-file', async (event, options: { workspacePath: string; filePath: string }) => {
         try {
-            const { filePath } = options;
+            const { workspacePath, filePath } = options;
+
+            // Resolve workspace-relative paths (e.g. from git status) against workspacePath
+            const absoluteFilePath = path.isAbsolute(filePath)
+                ? filePath
+                : workspacePath
+                    ? path.join(workspacePath, filePath)
+                    : filePath;
 
             // Send open-document event to the renderer to trigger handleWorkspaceFileSelect
             // which handles tab creation via switchWorkspaceFile (returns file content)
@@ -927,7 +934,7 @@ export function registerWorkspaceHandlers() {
             if (!window) {
                 throw new Error('No window found for event sender');
             }
-            window.webContents.send('open-document', { path: filePath });
+            window.webContents.send('open-document', { path: absoluteFilePath });
 
             return { success: true };
         } catch (error: any) {
