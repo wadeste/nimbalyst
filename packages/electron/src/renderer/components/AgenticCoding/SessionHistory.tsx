@@ -31,6 +31,8 @@ import {
   type SessionMeta,
 } from '../../store';
 import { alphaFeatureEnabledAtom, worktreesFeatureAvailableAtom } from '../../store/atoms/appSettings';
+import { worktreeDisplayNameUpdateAtom } from '../../store/atoms/worktrees';
+import { blitzCreatedAtom, blitzDisplayNameUpdateAtom } from '../../store/atoms/blitz';
 import { superLoopListAtom, upsertSuperLoopAtom, removeSuperLoopAtom } from '../../store/atoms/superLoop';
 import { useSuperLoopDialog } from '../../hooks/useSuperLoop';
 import type { SuperLoop } from '../../../shared/types/superLoop';
@@ -621,55 +623,45 @@ const SessionHistoryComponent: React.FC<SessionHistoryProps> = ({
     }
   }, [renamedWorktree]);
 
-  // Listen for worktree display name updates from main process
-  // This handles automatic worktree naming when first session in worktree is named
+  // React to worktree display-name updates broadcast by main. The IPC event
+  // is handled centrally in store/listeners/worktreeListeners.ts which writes
+  // worktreeDisplayNameUpdateAtom; we merge the update into our local cache
+  // when the worktree is one we know about, skipping the initial-mount value.
+  const worktreeDisplayNameUpdate = useAtomValue(worktreeDisplayNameUpdateAtom);
+  const initialWorktreeDisplayNameUpdateRef = useRef(worktreeDisplayNameUpdate);
   useEffect(() => {
     if (!workspacePath) return;
+    if (worktreeDisplayNameUpdate === initialWorktreeDisplayNameUpdateRef.current) return;
+    if (!worktreeDisplayNameUpdate) return;
+    const { worktreeId, displayName } = worktreeDisplayNameUpdate.payload;
+    setWorktreeCache(prev => {
+      const existing = prev.get(worktreeId);
+      if (!existing) return prev;
+      const updated = new Map(prev);
+      updated.set(worktreeId, { ...existing, displayName });
+      return updated;
+    });
+  }, [worktreeDisplayNameUpdate, workspacePath]);
 
-    const unsubscribe = window.electronAPI?.on?.('worktree:display-name-updated',
-      (data: { worktreeId: string; displayName: string }) => {
-        setWorktreeCache(prev => {
-          const existing = prev.get(data.worktreeId);
-          if (existing) {
-            const updated = new Map(prev);
-            updated.set(data.worktreeId, {
-              ...existing,
-              displayName: data.displayName
-            });
-            return updated;
-          }
-          return prev;
-        });
-      }
-    );
-
-    return () => unsubscribe?.();
-  }, [workspacePath]);
-
-  // Listen for blitz display name updates from main process
-  // This handles automatic blitz naming when first session in any blitz worktree is named
+  // React to blitz display-name updates broadcast by main. The IPC event is
+  // handled centrally in store/listeners/blitzListeners.ts which writes
+  // blitzDisplayNameUpdateAtom; we merge the update into our local cache when
+  // the blitz is one we know about, skipping the initial-mount value.
+  const blitzDisplayNameUpdate = useAtomValue(blitzDisplayNameUpdateAtom);
+  const initialBlitzDisplayNameUpdateRef = useRef(blitzDisplayNameUpdate);
   useEffect(() => {
     if (!workspacePath) return;
-
-    const unsubscribe = window.electronAPI?.on?.('blitz:display-name-updated',
-      (data: { blitzId: string; displayName: string }) => {
-        setBlitzCache(prev => {
-          const existing = prev.get(data.blitzId);
-          if (existing) {
-            const updated = new Map(prev);
-            updated.set(data.blitzId, {
-              ...existing,
-              displayName: data.displayName
-            });
-            return updated;
-          }
-          return prev;
-        });
-      }
-    );
-
-    return () => unsubscribe?.();
-  }, [workspacePath]);
+    if (blitzDisplayNameUpdate === initialBlitzDisplayNameUpdateRef.current) return;
+    if (!blitzDisplayNameUpdate) return;
+    const { blitzId, displayName } = blitzDisplayNameUpdate.payload;
+    setBlitzCache(prev => {
+      const existing = prev.get(blitzId);
+      if (!existing) return prev;
+      const updated = new Map(prev);
+      updated.set(blitzId, { ...existing, displayName });
+      return updated;
+    });
+  }, [blitzDisplayNameUpdate, workspacePath]);
 
   // Update session timestamp when updated (efficient update without database reload)
   useEffect(() => {
@@ -2050,22 +2042,24 @@ const SessionHistoryComponent: React.FC<SessionHistoryProps> = ({
     }
   }, [workspacePath]);
 
-  // Initial fetch + re-fetch when blitz:created event fires
+  // Initial fetch on workspace change.
   useEffect(() => {
     if (!workspacePath) return;
-
     fetchBlitzes();
-
-    const unsubscribe = window.electronAPI?.on?.('blitz:created',
-      (data: { blitzId: string; workspacePath: string }) => {
-        if (data.workspacePath === workspacePath) {
-          fetchBlitzes();
-        }
-      }
-    );
-
-    return () => unsubscribe?.();
   }, [workspacePath, fetchBlitzes]);
+
+  // Re-fetch when a `blitz:created` event arrives for this workspace. The
+  // IPC event is handled centrally in store/listeners/blitzListeners.ts which
+  // writes blitzCreatedAtom; we skip the initial-mount value so we don't
+  // double-fetch alongside the effect above.
+  const blitzCreated = useAtomValue(blitzCreatedAtom);
+  const initialBlitzCreatedRef = useRef(blitzCreated);
+  useEffect(() => {
+    if (!workspacePath) return;
+    if (blitzCreated === initialBlitzCreatedRef.current) return;
+    if (!blitzCreated || blitzCreated.payload.workspacePath !== workspacePath) return;
+    fetchBlitzes();
+  }, [blitzCreated, workspacePath, fetchBlitzes]);
 
   // Fetch children for expanded workstreams
   useEffect(() => {

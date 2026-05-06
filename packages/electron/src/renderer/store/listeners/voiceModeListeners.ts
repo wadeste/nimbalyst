@@ -24,6 +24,7 @@ import {
   voiceLastReportedFileAtom,
   voiceListenStateAtom,
   voiceErrorAtom,
+  voiceModePreviewAudioAtom,
   getVoiceAudioCallback,
   getVoiceInterruptCallback,
   getVoiceSubmitPromptCallback,
@@ -250,6 +251,28 @@ export function initVoiceModeListeners(): () => void {
   cleanups.push(
     window.electronAPI.on('voice-mode:settings-changed', (settings: VoiceModeSettings) => {
       store.set(voiceModeSettingsAtom, settings);
+    })
+  );
+
+  // =========================================================================
+  // Preview Audio (response to voice-mode:preview-voice invoke)
+  // =========================================================================
+  // The Settings > Voice Mode panel triggers a preview via invoke; main
+  // streams the audio back via this event. We bump a request atom so the
+  // panel can play it without subscribing to IPC directly.
+  let previewAudioVersion = 0;
+  cleanups.push(
+    window.electronAPI.on('voice-mode:preview-audio', (payload: {
+      voiceId: string;
+      audioBase64: string;
+      format: string;
+    }) => {
+      if (!payload?.audioBase64) return;
+      previewAudioVersion += 1;
+      store.set(voiceModePreviewAudioAtom, {
+        version: previewAudioVersion,
+        payload,
+      });
     })
   );
 

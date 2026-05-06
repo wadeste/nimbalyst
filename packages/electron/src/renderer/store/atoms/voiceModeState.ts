@@ -149,6 +149,21 @@ export const voiceLastReportedFileAtom = atom<string | null>(null);
  */
 export const voiceErrorAtom = atom<{ type: string; message: string } | null>(null);
 
+/**
+ * Latest `voice-mode:preview-audio` event from main.
+ *
+ * Request-atom shape: each event bumps `version` and replaces `payload`.
+ * The Settings > Voice Mode panel uses this to play the preview audio
+ * returned by `voice-mode:preview-voice` invocations. Consumers must apply
+ * the skip-initial-mount idiom so the side effect only fires on real bumps.
+ */
+export interface VoiceModePreviewAudio {
+  version: number;
+  payload: { voiceId: string; audioBase64: string; format: string };
+}
+
+export const voiceModePreviewAudioAtom = atom<VoiceModePreviewAudio | null>(null);
+
 // =========================================================================
 // Voice Callbacks (registered by components, invoked by centralized listeners)
 // =========================================================================

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAtomValue } from 'jotai';
 import {
   MaterialSymbol,
@@ -8,6 +8,7 @@ import {
   type TrackerSyncMode,
 } from '@nimbalyst/runtime';
 import { trackerItemCountByTypeAtom } from '@nimbalyst/runtime/plugins/TrackerPlugin';
+import { trackerSyncConfigChangeAtom } from '../../../store/atoms/trackerSync';
 import { AlphaBadge } from '../../common/AlphaBadge';
 import { useDialog } from '../../../contexts/DialogContext';
 import {
@@ -529,14 +530,6 @@ export function TrackerConfigPanel({ workspacePath }: TrackerConfigPanelProps) {
 
     loadPolicies();
 
-    // Listen for config changes from sync
-    const handleConfigChanged = (_event: any, data: { workspacePath: string; config: { issueKeyPrefix: string } }) => {
-      if (data.workspacePath === workspacePath && data.config.issueKeyPrefix) {
-        setIssueKeyPrefix(data.config.issueKeyPrefix);
-      }
-    };
-    (window as any).electronAPI?.on?.('tracker-sync:config-changed', handleConfigChanged);
-
     // Subscribe to registry changes (e.g., custom trackers loaded later)
     const unsubscribe = globalRegistry.onChange(() => {
       const updatedModels = globalRegistry.getAll();
@@ -551,9 +544,24 @@ export function TrackerConfigPanel({ workspacePath }: TrackerConfigPanelProps) {
 
     return () => {
       unsubscribe();
-      (window as any).electronAPI?.off?.('tracker-sync:config-changed', handleConfigChanged);
     };
   }, [workspacePath]);
+
+  // React to `tracker-sync:config-changed` events broadcast by main. The IPC
+  // event is handled centrally in store/listeners/trackerSyncListeners.ts
+  // which writes trackerSyncConfigChangeAtom; we apply only updates whose
+  // workspacePath matches ours, skipping the initial-mount value so a stale
+  // config update from before this panel opened doesn't clobber the fresh
+  // value loaded from workspace state.
+  const trackerSyncConfigChange = useAtomValue(trackerSyncConfigChangeAtom);
+  const initialTrackerSyncConfigChangeRef = useRef(trackerSyncConfigChange);
+  useEffect(() => {
+    if (trackerSyncConfigChange === initialTrackerSyncConfigChangeRef.current) return;
+    if (!trackerSyncConfigChange) return;
+    const { workspacePath: eventPath, config } = trackerSyncConfigChange.payload;
+    if (eventPath !== workspacePath || !config.issueKeyPrefix) return;
+    setIssueKeyPrefix(config.issueKeyPrefix);
+  }, [trackerSyncConfigChange, workspacePath]);
 
   const handlePrefixChange = useCallback((prefix: string) => {
     setIssueKeyPrefix(prefix);
