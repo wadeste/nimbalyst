@@ -10,6 +10,7 @@ import type { JSX } from 'react';
 import { useMemo, useRef } from 'react';
 
 import { LexicalExtensionComposer } from '@lexical/react/LexicalExtensionComposer';
+import { LexicalCollaboration } from '@lexical/react/LexicalCollaborationContext';
 import { $convertFromEnhancedMarkdownString } from './markdown';
 import {
     $createParagraphNode,
@@ -121,15 +122,17 @@ function NimbalystEditor({config}: NimbalystEditorProps): JSX.Element {
         >
             <RuntimeSettingsProvider>
                 <LexicalExtensionComposer extension={rootExtension} contentEditable={null}>
-                    <SharedHistoryContext>
-                        <TableContext>
-                            <ToolbarContext>
-                                <div className="editor-shell">
-                                    <Editor config={mergedConfig}/>
-                                </div>
-                            </ToolbarContext>
-                        </TableContext>
-                    </SharedHistoryContext>
+                    <LexicalCollaboration>
+                        <SharedHistoryContext>
+                            <TableContext>
+                                <ToolbarContext>
+                                    <div className="editor-shell">
+                                        <Editor config={mergedConfig}/>
+                                    </div>
+                                </ToolbarContext>
+                            </TableContext>
+                        </SharedHistoryContext>
+                    </LexicalCollaboration>
                 </LexicalExtensionComposer>
             </RuntimeSettingsProvider>
         </div>
