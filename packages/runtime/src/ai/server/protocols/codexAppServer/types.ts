@@ -334,6 +334,61 @@ export interface WarningNotification {
   message: string;
 }
 
+// ---- account/* (auth) ----
+
+export interface AccountReadParams {
+  refreshToken?: boolean;
+}
+
+export type AccountKind =
+  | null
+  | { type: 'apiKey' }
+  | { type: 'chatgpt'; email: string; planType: string };
+
+export interface AccountReadResponse {
+  account: AccountKind;
+  requiresOpenaiAuth: boolean;
+}
+
+export type AccountLoginStartParams =
+  | { type: 'apiKey'; apiKey: string }
+  | { type: 'chatgpt' }
+  | { type: 'chatgptDeviceCode' }
+  | {
+      type: 'chatgptAuthTokens';
+      accessToken: string;
+      chatgptAccountId: string;
+      chatgptPlanType: string;
+    };
+
+export type AccountLoginStartResponse =
+  | { type: 'apiKey' }
+  | { type: 'chatgpt'; loginId: string; authUrl: string }
+  | {
+      type: 'chatgptDeviceCode';
+      loginId: string;
+      verificationUrl: string;
+      userCode: string;
+    }
+  | { type: 'chatgptAuthTokens' };
+
+export interface AccountLoginCancelParams {
+  loginId: string;
+}
+
+export interface AccountLoginCompletedNotification {
+  loginId: string | null;
+  success: boolean;
+  error: string | null;
+}
+
+export type AccountAuthMode = 'apikey' | 'chatgpt' | 'chatgptAuthTokens' | null;
+
+export interface AccountUpdatedNotification {
+  authMode: AccountAuthMode;
+  planType: string | null;
+}
+
 // ---- Server-to-client requests (we respond to these) ----
 
 export interface ItemFileChangeRequestApprovalParams {

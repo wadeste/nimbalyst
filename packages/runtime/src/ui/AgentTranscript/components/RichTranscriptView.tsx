@@ -156,13 +156,22 @@ const injectRichTranscriptStyles = () => {
     /* Chat-bottom layout: when transcript content is shorter than the
        scrollable viewport, push it against the bottom so the latest message
        sits next to the input. When content overflows, this is a no-op and
-       normal top-to-bottom scrolling takes over. */
+       normal top-to-bottom scrolling takes over.
+       The explicit width:100% here is critical: turning the scroll container
+       into a flex column would otherwise let the existing mx-auto on
+       .rich-transcript-content (and margin:0 auto on .rich-transcript-flat-list)
+       absorb cross-axis space as flex auto-margins, which kills
+       align-items:stretch and shrink-wraps every row to its content width. */
     .rich-transcript-scroll-container.flat {
       display: flex;
       flex-direction: column;
     }
     .rich-transcript-scroll-container.flat > .rich-transcript-content {
       margin-top: auto;
+      width: 100%;
+    }
+    .rich-transcript-flat-list {
+      width: 100%;
     }
     /* Scroll-container scrollbar styling, mirrors the VList rule above so the
        flat-list path shares the same thin themed scrollbar. */
@@ -1384,13 +1393,27 @@ export const RichTranscriptView = React.forwardRef<
     const container = scrollContainerRef.current;
     if (!container) return;
 
+    // content-visibility rows expand from their intrinsic-size placeholder
+    // to their real height as they enter the viewport. That grows scrollHeight
+    // without changing scrollTop, which trips the at-bottom check and would
+    // otherwise drop us out of sticky-scroll mode mid-stream. Only update
+    // the at-bottom atom when the user actually scrolled (scrollTop changed).
+    let lastScrollTop = container.scrollTop;
+
     const handleScroll = () => {
       const scrollSize = container.scrollHeight;
       const viewportSize = container.clientHeight;
       const scrollOffset = container.scrollTop;
+      const scrollTopChanged = scrollOffset !== lastScrollTop;
+      lastScrollTop = scrollOffset;
       const distanceFromBottom = scrollSize - scrollOffset - viewportSize;
       const isAtBottom = distanceFromBottom < 50;
-      setSessionIsAtBottom(sessionId, isAtBottom);
+      // If the user actually scrolled, reflect their position. If only the
+      // layout shifted, only sync the atom when it would set true (so we
+      // never drop sticky-bottom due to content expansion).
+      if (scrollTopChanged || isAtBottom) {
+        setSessionIsAtBottom(sessionId, isAtBottom);
+      }
       if (scrollButtonRef.current) {
         const show = distanceFromBottom > viewportSize;
         scrollButtonRef.current.style.opacity = show ? '1' : '0';
@@ -1416,6 +1439,27 @@ export const RichTranscriptView = React.forwardRef<
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
   }, [useVirtualization, sessionId, pendingPermissionIndices, showPermissionBanner]);
+
+  // Flat-list mode: when content grows (new streamed chunk, content-visibility
+  // expansion, image load), re-pin to the bottom as long as the user is in
+  // sticky-bottom mode. The useEffect above fires only when messages change;
+  // this ResizeObserver catches every layout-driven growth in between.
+  useEffect(() => {
+    if (useVirtualization) return;
+    const flatList = flatListRef.current;
+    if (!flatList) return;
+
+    let lastHeight = flatList.scrollHeight;
+    const ro = new ResizeObserver(() => {
+      const nextHeight = flatList.scrollHeight;
+      if (nextHeight > lastHeight && getSessionIsAtBottom(sessionId)) {
+        flatBottomSentinelRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+      }
+      lastHeight = nextHeight;
+    });
+    ro.observe(flatList);
+    return () => ro.disconnect();
+  }, [useVirtualization, sessionId]);
 
 
   // Listen for routed search events from AgentWorkstreamPanel
@@ -1522,6 +1566,12 @@ export const RichTranscriptView = React.forwardRef<
   const isLoginRequiredError = (message: TranscriptViewMessage) => {
     // First-class detection via SDK's isAuthError flag (most reliable)
     if (message.isAuthError === true) {
+      return true;
+    }
+
+    // Codex app-server pre-flight auth required -- treat the same so the
+    // last-message-only widget gating in shouldShowLoginWidgetForIndex applies.
+    if (message.isCodexAuthRequired === true) {
       return true;
     }
 

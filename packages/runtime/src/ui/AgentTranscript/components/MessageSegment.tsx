@@ -5,6 +5,7 @@ import { JSONViewer } from './JSONViewer';
 import { DiffViewer } from './DiffViewer';
 import { LoginRequiredWidget } from './LoginRequiredWidget';
 import { OpenAIAuthWidget } from './OpenAIAuthWidget';
+import { CodexAuthRequiredWidget } from './CodexAuthRequiredWidget';
 import { ContextLimitWidget } from './ContextLimitWidget';
 import { RateLimitWidget } from './RateLimitWidget';
 import { ApiServiceErrorWidget, isApiServiceError } from './ApiServiceErrorWidget';
@@ -339,6 +340,17 @@ export const MessageSegment: React.FC<MessageSegmentProps> = ({
     if (!message.isError || message.type === 'tool_call') return null;
 
     const errorMessage = message.text || 'Error';
+
+    // Pre-flight Codex app-server auth failure -- prefer the structured CTA
+    // over the generic OpenAIAuthWidget so the user gets a one-click jump to
+    // the new Codex auth panel in Settings. shouldShowLoginWidget gates this
+    // for history rendering (same rule as other auth widgets).
+    if (message.isCodexAuthRequired && shouldShowLoginWidget) {
+      return <CodexAuthRequiredWidget fallbackMessage={errorMessage} />;
+    }
+    if (message.isCodexAuthRequired && !shouldShowLoginWidget) {
+      return null;
+    }
 
     // Check if this is an OpenAI authentication error
     if (isOpenAIAuthError(errorMessage) && shouldShowLoginWidget) {

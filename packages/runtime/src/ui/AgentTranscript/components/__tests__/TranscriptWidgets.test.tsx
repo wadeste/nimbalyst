@@ -169,6 +169,67 @@ describe('MessageSegment', () => {
     expect(errorDiv).not.toBeNull();
   });
 
+  it('renders the Codex auth required CTA when isCodexAuthRequired is set', () => {
+    const message = makeMessage({
+      type: 'system_message',
+      text: 'Error: Sign in to OpenAI Codex to continue.',
+      isError: true,
+      isCodexAuthRequired: true,
+    });
+    const { container } = render(
+      <MessageSegment
+        message={message}
+        isUser={false}
+        showToolCalls={false}
+        showThinking={false}
+        expandedTools={new Set()}
+        onToggleToolExpand={() => {}}
+        shouldShowLoginWidget={true}
+      />
+    );
+    const widget = container.querySelector('[data-testid="codex-auth-required-widget"]');
+    expect(widget).not.toBeNull();
+    expect(widget?.textContent ?? '').toMatch(/Sign in to OpenAI Codex to continue/i);
+    const signInBtn = container.querySelector('[data-testid="codex-auth-required-sign-in"]') as HTMLButtonElement | null;
+    expect(signInBtn).not.toBeNull();
+
+    // Generic error styling MUST NOT appear when the CTA takes over.
+    expect(container.querySelector('.text-nim-error')).toBeNull();
+
+    const events: Array<{ anchor?: string }> = [];
+    const listener = (e: Event) => {
+      events.push((e as CustomEvent<{ anchor?: string }>).detail);
+    };
+    window.addEventListener('nimbalyst:open-codex-auth-settings', listener);
+    try {
+      fireEvent.click(signInBtn!);
+    } finally {
+      window.removeEventListener('nimbalyst:open-codex-auth-settings', listener);
+    }
+    expect(events).toEqual([{ anchor: 'codex-auth-section' }]);
+  });
+
+  it('suppresses the Codex auth CTA when shouldShowLoginWidget is false', () => {
+    const message = makeMessage({
+      type: 'system_message',
+      text: 'Error: Sign in to OpenAI Codex to continue.',
+      isError: true,
+      isCodexAuthRequired: true,
+    });
+    const { container } = render(
+      <MessageSegment
+        message={message}
+        isUser={false}
+        showToolCalls={false}
+        showThinking={false}
+        expandedTools={new Set()}
+        onToggleToolExpand={() => {}}
+        shouldShowLoginWidget={false}
+      />
+    );
+    expect(container.querySelector('[data-testid="codex-auth-required-widget"]')).toBeNull();
+  });
+
   it('renders context limit widget for context limit errors', () => {
     const message = makeMessage({
       type: 'assistant_message',

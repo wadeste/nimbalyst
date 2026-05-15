@@ -142,5 +142,7 @@ export const incrementSettingsKeyAtom = atom(
 export const openSettingsCommandAtom = atom<{
   category: SettingsCategory;
   scope?: SettingsScope;
+  /** Optional data-testid to scrollIntoView once the selected panel renders. */
+  anchor?: string;
   timestamp: number;
 } | null>(null);

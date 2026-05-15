@@ -29,6 +29,7 @@ import { registerWorkspaceWatcherHandlers } from './file/WorkspaceWatcher';
 import { setupSessionFileHandlers } from './ipc/SessionFileHandlers';
 import { registerSlashCommandHandlers } from './ipc/SlashCommandHandlers';
 import { registerClaudeCodeHandlers } from './ipc/ClaudeCodeHandlers';
+import { registerCodexAuthHandlers } from './ipc/CodexAuthHandlers';
 import { initializeClaudeCodeSessionHandlers } from './ipc/ClaudeCodeSessionHandlers';
 import { registerNotificationHandlers } from './ipc/NotificationHandlers';
 import { registerPermissionHandlers } from './ipc/PermissionHandlers';
@@ -109,6 +110,7 @@ import { registerClaudeUsageHandlers } from './ipc/ClaudeUsageHandlers';
 import { claudeUsageService } from './services/ClaudeUsageService';
 import { registerCodexUsageHandlers } from './ipc/CodexUsageHandlers';
 import { codexUsageService } from './services/CodexUsageService';
+import { codexAuthService } from './services/CodexAuthService';
 import { registerExtensionHandlers, getClaudePluginPaths, initializeExtensionFileTypes } from './ipc/ExtensionHandlers';
 import { getAgentWorkflowService } from './services/AgentWorkflowService';
 import { queueMarketplaceInstallRequest, registerExtensionMarketplaceHandlers, runExtensionAutoUpdate } from './ipc/ExtensionMarketplaceHandlers';
@@ -1119,6 +1121,7 @@ app.whenReady().then(async () => {
     registerProjectSelectionHandlers();
     registerMultiProjectRailHandlers();
     registerClaudeCodeHandlers();
+    registerCodexAuthHandlers();
     initializeClaudeCodeSessionHandlers();  // Initialize Claude Code session import
     registerAnalyticsHandlers();
     registerFeatureUsageHandlers();
@@ -1452,6 +1455,30 @@ app.whenReady().then(async () => {
     OpenAICodexProvider.setCodexTransportResolver(() => {
       const setting = getAppSetting<{ transport?: 'sdk' | 'app-server' }>('openaiCodex')?.transport;
       return setting === 'sdk' ? 'sdk' : 'app-server';
+    });
+
+    // Pre-flight auth gate for the codex app-server transport. Reuses the
+    // long-lived codexAuthService child (no extra spawn per turn). Returning a
+    // permissive `{ requiresOpenaiAuth: false }` on failure means the provider
+    // falls through to its normal createSession path -- the child will surface
+    // any real auth issue mid-stream as before, so we never block a turn on a
+    // gate that itself broke.
+    //
+    // We force `refreshToken: true` so codex re-reads ~/.codex/auth.json (and
+    // refreshes the OAuth token if expired) before answering. Without this the
+    // long-lived child can stay cached on a "not signed in" view it loaded
+    // before the user completed the browser flow. We treat `account === null`
+    // as the only valid "not signed in" signal -- `requiresOpenaiAuth` can be
+    // true on signed-in-but-no-codex-access plans, which is a different state
+    // and should surface as a 401 mid-turn, not as a sign-in prompt.
+    OpenAICodexProvider.setCodexAuthGate(async () => {
+      try {
+        const status = await codexAuthService.getStatus(true);
+        return { requiresOpenaiAuth: status.account === null };
+      } catch (err) {
+        console.warn('[CODEX] codexAuthService.getStatus() failed in auth gate:', err);
+        return { requiresOpenaiAuth: false };
+      }
     });
 
     // Wire shared permission infrastructure for all agent providers.
@@ -2284,6 +2311,13 @@ app.on('before-quit', async (event) => {
         // Shutdown terminal sessions
         await shutdownTerminalHandlers();
         console.log(`[QUIT] Terminal sessions shutdown`);
+
+        // Tear down the codex auth app-server child if it was lazily started.
+        try {
+            codexAuthService.shutdown();
+        } catch (e) {
+            console.warn('[QUIT] codexAuthService shutdown failed:', e);
+        }
     } catch (error) {
         console.error('[QUIT] Error shutting down session state manager:', error);
         if (canWriteLogs && debugLog) {

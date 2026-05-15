@@ -412,6 +412,7 @@ export interface StreamChunk {
   isAuthError?: boolean; // True when error is an authentication failure (SDK first-class detection)
   isBedrockToolError?: boolean; // True when error is a Bedrock tool search error
   isServerError?: boolean; // True when error is a 500/internal server error (Claude may be down)
+  isCodexAuthRequired?: boolean; // True when a Codex app-server session was blocked because the user is not signed in to OpenAI
   isComplete?: boolean;
   config?: unknown; // For stream_edit_start
   usage?: {

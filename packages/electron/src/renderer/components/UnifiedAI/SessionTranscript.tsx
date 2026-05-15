@@ -343,6 +343,20 @@ export const SessionTranscript = forwardRef<SessionTranscriptRef, SessionTranscr
     return raw != null ? parseEffortLevel(raw) : defaultEffortLevel;
   }, [sessionData?.metadata, defaultEffortLevel]);
 
+  // Memoize the teammate list passed to AgentTranscriptPanel so its memo
+  // comparison doesn't see a new array reference on every keystroke. Without
+  // this, typing in the AI input re-rendered SessionTranscript (intended),
+  // which created a fresh `transcriptTeammates` array (regression), which
+  // tripped AgentTranscriptPanel's `currentTeammates` reference check and
+  // re-rendered the entire transcript per character typed.
+  const transcriptTeammates = useMemo(() => [
+    ...(((sessionData?.metadata?.currentTeammates as Array<{
+      agentId: string;
+      status: 'running' | 'completed' | 'errored' | 'idle';
+    }> | undefined) ?? [])),
+    ...(additionalTeammates ?? []),
+  ], [sessionData?.metadata, additionalTeammates]);
+
   // Draft input state via Jotai atoms - only this component re-renders on typing
   const [draftInput, setDraftInputRaw] = useAtom(sessionDraftInputAtom(sessionId));
   const [draftAttachments, setDraftAttachments] = useAtom(sessionDraftAttachmentsAtom(sessionId));
@@ -558,10 +572,16 @@ export const SessionTranscript = forwardRef<SessionTranscriptRef, SessionTranscr
          (sessionError.message.toLowerCase().includes('401') && sessionError.message.toLowerCase().includes('authentication')));
 
       if (!isCodexOpenAIAuthError) {
-        // Add error as an assistant message so user can see what went wrong
+        // Add error as an assistant message so user can see what went wrong.
+        // isCodexAuthRequired short-circuits the rendered text to a CTA widget
+        // that opens the Codex auth section in settings; the raw error string
+        // becomes the widget's fallback subtitle.
+        const extra: Partial<TranscriptViewMessage> = {};
+        if (sessionError.isAuthError) extra.isAuthError = true;
+        if (sessionError.isCodexAuthRequired) extra.isCodexAuthRequired = true;
         const errorMessage = makeOptimisticError(
           `Error: ${sessionError.message}`,
-          sessionError.isAuthError ? { isAuthError: true } : undefined,
+          Object.keys(extra).length > 0 ? extra : undefined,
         );
         updateSessionStore({
           sessionId,
@@ -1640,14 +1660,6 @@ export const SessionTranscript = forwardRef<SessionTranscriptRef, SessionTranscr
       </div>
     );
   }
-
-  const transcriptTeammates = [
-    ...(((sessionData.metadata?.currentTeammates as Array<{
-      agentId: string;
-      status: 'running' | 'completed' | 'errored' | 'idle';
-    }> | undefined) ?? [])),
-    ...(additionalTeammates ?? []),
-  ];
 
   return (
     <div

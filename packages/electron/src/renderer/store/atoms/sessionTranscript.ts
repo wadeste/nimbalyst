@@ -20,7 +20,13 @@ import { atomFamily } from '../debug/atomFamilyRegistry';
  * Set when ai:error event fires for this session.
  */
 export const sessionErrorAtom = atomFamily((_sessionId: string) =>
-  atom<{ message: string; isAuthError?: boolean; isBedrockToolError?: boolean; isServerError?: boolean } | null>(null)
+  atom<{
+    message: string;
+    isAuthError?: boolean;
+    isBedrockToolError?: boolean;
+    isServerError?: boolean;
+    isCodexAuthRequired?: boolean;
+  } | null>(null)
 );
 
 // Note: ExitPlanMode uses inline widget rendering from tool call data via ExitPlanModeWidget

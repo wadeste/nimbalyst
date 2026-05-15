@@ -122,6 +122,61 @@ interface AppServerSessionRaw {
   stderrTail: string[];
 }
 
+function previewForLog(value: string | undefined, max = 300): string | undefined {
+  if (!value) return value;
+  return value.length > max ? `${value.slice(0, max)}...` : value;
+}
+
+function summarizeNotificationParams(
+  method: string,
+  paramsUnknown: unknown,
+): Record<string, unknown> | undefined {
+  const params = (paramsUnknown && typeof paramsUnknown === 'object')
+    ? paramsUnknown as Record<string, unknown>
+    : undefined;
+  if (!params) return undefined;
+
+  switch (method) {
+    case 'error':
+    case 'turn/failed': {
+      const errorObj = params.error as { message?: string; codexErrorInfo?: string; additionalDetails?: unknown } | undefined;
+      return {
+        threadId: params.threadId,
+        turnId: params.turnId,
+        willRetry: params.willRetry,
+        message: previewForLog(errorObj?.message),
+        codexErrorInfo: previewForLog(errorObj?.codexErrorInfo),
+        additionalDetails: errorObj?.additionalDetails,
+      };
+    }
+    case 'warning': {
+      return {
+        threadId: params.threadId,
+        turnId: params.turnId,
+        message: previewForLog(params.message as string | undefined),
+      };
+    }
+    case 'turn/completed': {
+      const turn = params.turn as { id?: string; status?: string; error?: { message?: string } } | undefined;
+      return {
+        threadId: params.threadId,
+        turnId: turn?.id ?? params.turnId,
+        status: turn?.status,
+        error: previewForLog(turn?.error?.message),
+      };
+    }
+    case 'mcpServer/startupStatus/updated': {
+      return {
+        name: params.name,
+        status: params.status,
+        error: previewForLog((params.error as string | null | undefined) ?? undefined),
+      };
+    }
+    default:
+      return undefined;
+  }
+}
+
 export class CodexAppServerProtocol implements AgentProtocol {
   readonly platform = 'codex-app-server';
 
@@ -256,9 +311,10 @@ export class CodexAppServerProtocol implements AgentProtocol {
       turnStartResultId = turnStart?.turn?.id ?? null;
       raw.activeTurnId = turnStartResultId;
     } catch (err) {
+      const baseMsg = err instanceof Error ? err.message : String(err);
       yield {
         type: 'error',
-        error: err instanceof Error ? err.message : String(err),
+        error: appendStderrTail(baseMsg, raw),
       };
       return;
     }
@@ -280,7 +336,7 @@ export class CodexAppServerProtocol implements AgentProtocol {
           continue;
         }
         if (entry.kind === 'fail') {
-          yield { type: 'error', error: entry.error.message };
+          yield { type: 'error', error: appendStderrTail(entry.error.message, raw) };
           return;
         }
         if (entry.kind === 'end') {
@@ -335,6 +391,11 @@ export class CodexAppServerProtocol implements AgentProtocol {
     const binary = resolveCodexBinaryPath(this.resolveCodexPathOverride);
     const env = this.buildEnv(options, binary);
     const cwd = options.workspacePath || process.cwd();
+    console.log('[CODEX][APPSERVER] spawning child:', {
+      binary,
+      cwd,
+      helperPathEntries: getCodexVendorPathEntries(binary),
+    });
     const child = spawn(binary, ['app-server', '--listen', 'stdio://'], {
       env,
       cwd,
@@ -344,6 +405,7 @@ export class CodexAppServerProtocol implements AgentProtocol {
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (chunk: string) => {
       stderrTail.push(chunk);
+      console.warn('[CODEX][APPSERVER][stderr]', previewForLog(chunk.trim(), 800));
       // Keep the last ~16KB for diagnostics.
       while (stderrTail.length > 0 && stderrTail.join('').length > 16 * 1024) {
         stderrTail.shift();
@@ -550,6 +612,10 @@ export class CodexAppServerProtocol implements AgentProtocol {
     setUsage: (u: { input_tokens: number; output_tokens: number; total_tokens: number }) => void,
   ): void {
     const params = paramsUnknown as Record<string, unknown> | undefined;
+    const summary = summarizeNotificationParams(method, paramsUnknown);
+    if (summary) {
+      console.log('[CODEX][APPSERVER] notification:', method, summary);
+    }
     // Emit a raw_event for every notification so transcript persistence has a
     // complete log, just like the SDK adapter does for SDK events.
     push({
@@ -875,6 +941,14 @@ export class CodexAppServerProtocol implements AgentProtocol {
       return { path: change.path, kind, diff: change.diff, preEditContent: 'requires-post-edit-content' };
     });
   }
+}
+
+// Append the captured codex stderr tail to a fail message so users see the
+// binary's own diagnostics (e.g. plugin discovery / auth retry loops) instead
+// of an opaque "Reconnecting..." or "turn failed" string.
+function appendStderrTail(msg: string, raw: { stderrTail: string[] }): string {
+  const tail = raw.stderrTail.join('').slice(-2000).trim();
+  return tail ? `${msg}\nstderr tail: ${tail}` : msg;
 }
 
 function normalizeUsage(u: TokenUsage | undefined): { input_tokens: number; output_tokens: number; total_tokens: number } | undefined {

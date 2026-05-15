@@ -270,6 +270,17 @@ export class OpenAICodexProvider extends BaseAgentProvider {
     OpenAICodexProvider.appServerHostBindings = bindings;
   }
 
+  // Host-supplied auth gate. Returns whether OpenAI auth is currently required
+  // (i.e. the user is signed out). Only consulted for the `app-server`
+  // transport, before createSession/resumeSession. Lets the provider emit a
+  // structured "sign in to continue" error chunk instead of spawning a child
+  // that will fail with an opaque 401 from api.openai.com.
+  private static codexAuthGate: (() => Promise<{ requiresOpenaiAuth: boolean }>) | null = null;
+
+  public static setCodexAuthGate(gate: (() => Promise<{ requiresOpenaiAuth: boolean }>) | null): void {
+    OpenAICodexProvider.codexAuthGate = gate;
+  }
+
   constructor(config?: { apiKey?: string }, deps?: OpenAICodexProviderDeps) {
     super();
     const apiKey = config?.apiKey || '';
@@ -1066,6 +1077,34 @@ export class OpenAICodexProvider extends BaseAgentProvider {
           ...(additionalDirectories.length > 0 ? { additionalDirectories } : {}),
         },
       };
+
+      // Pre-flight auth check for the app-server transport. The session child
+      // can't authenticate on its own when there's no auth.json -- the codex
+      // SDK transport surfaces this as an opaque 401 mid-stream, but the
+      // app-server transport just hangs on the first turn. Catch it here so
+      // the transcript can render a "Sign in to Codex" CTA instead of waiting.
+      // Skipped for the SDK transport (no in-app account/* RPC there) and
+      // when no gate is wired (tests).
+      if (
+        this.transport === 'app-server' &&
+        !cachedLiveSession &&
+        OpenAICodexProvider.codexAuthGate
+      ) {
+        try {
+          const gateResult = await OpenAICodexProvider.codexAuthGate();
+          if (gateResult.requiresOpenaiAuth) {
+            yield {
+              type: 'error',
+              error: 'Sign in to OpenAI Codex to continue.',
+              isAuthError: true,
+              isCodexAuthRequired: true,
+            };
+            return;
+          }
+        } catch (err) {
+          console.warn('[CODEX] auth gate check failed; continuing without pre-flight:', err);
+        }
+      }
 
       let session: ProtocolSession;
       let isResumedThread: boolean;

@@ -1083,7 +1083,10 @@ export default function App() {
     });
   }, []);
 
-  // React to openSettingsCommandAtom (used by tips to navigate to settings)
+  // React to openSettingsCommandAtom (used by tips to navigate to settings).
+  // anchor: optional data-testid the consumer wants scrolled into view once the
+  // selected panel renders. We poll briefly because the panel mounts on a
+  // separate React commit and may not be in the DOM on the first frame.
   const openSettingsCommand = useAtomValue(openSettingsCommandAtom);
   const openSettingsCommandProcessedRef = useRef<number | null>(null);
   useEffect(() => {
@@ -1094,7 +1097,38 @@ export default function App() {
     if (openSettingsCommand.scope) setSettingsInitialScope(openSettingsCommand.scope);
     incrementSettingsKey();
     setTimeout(() => setActiveMode('settings'), 0);
+
+    const anchor = openSettingsCommand.anchor;
+    if (anchor) {
+      let attempts = 0;
+      const tryScroll = () => {
+        const el = document.querySelector(`[data-testid="${anchor}"]`);
+        if (el instanceof HTMLElement) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+        if (attempts++ < 20) setTimeout(tryScroll, 50);
+      };
+      setTimeout(tryScroll, 50);
+    }
   }, [openSettingsCommand, setSettingsInitialCategory, setSettingsInitialScope, incrementSettingsKey]);
+
+  // Custom event dispatched by the runtime-side CodexAuthRequiredWidget. Lives
+  // in renderer because the widget cannot reach the renderer's jotai store
+  // directly across the package boundary.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ anchor?: string }>).detail;
+      store.set(openSettingsCommandAtom, {
+        category: 'openai-codex',
+        scope: 'user',
+        anchor: detail?.anchor ?? 'codex-auth-section',
+        timestamp: Date.now(),
+      });
+    };
+    window.addEventListener('nimbalyst:open-codex-auth-settings', handler);
+    return () => window.removeEventListener('nimbalyst:open-codex-auth-settings', handler);
+  }, []);
 
   // React to unified navigation back/forward commands. The IPC subscriptions
   // live in store/listeners/appCommandListeners.ts.

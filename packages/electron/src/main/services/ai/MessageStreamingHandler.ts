@@ -1838,7 +1838,8 @@ export class MessageStreamingHandler {
               message: errorMsg,
               isAuthError: chunk.isAuthError || false,
               isBedrockToolError,
-              isServerError
+              isServerError,
+              isCodexAuthRequired: chunk.isCodexAuthRequired || false,
             });
             break;
 

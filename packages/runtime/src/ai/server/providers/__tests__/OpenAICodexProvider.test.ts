@@ -1512,4 +1512,98 @@ describe('OpenAICodexProvider', () => {
       120000
     );
   });
+
+  describe('codex app-server auth gate', () => {
+    function buildAppServerProvider() {
+      const createSession = vi.fn(async () => ({
+        id: 'thread-app-server-auth',
+        platform: 'codex-app-server',
+        raw: {},
+      }));
+      const sendMessage = vi.fn((_session, _message) => createAsyncEventStream([]));
+      const protocol = {
+        platform: 'codex-app-server',
+        createSession,
+        resumeSession: vi.fn(),
+        forkSession: vi.fn(),
+        sendMessage,
+        abortSession: vi.fn(),
+        cleanupSession: vi.fn(),
+      } as any;
+
+      const provider = new OpenAICodexProvider(
+        {},
+        {
+          transport: 'app-server',
+          protocol,
+        },
+      );
+      return { provider, createSession, sendMessage };
+    }
+
+    beforeEach(() => {
+      OpenAICodexProvider.setCodexAuthGate(null);
+    });
+
+    it('short-circuits with an isCodexAuthRequired error chunk when the gate reports requiresOpenaiAuth', async () => {
+      const gate = vi.fn(async () => ({ requiresOpenaiAuth: true }));
+      OpenAICodexProvider.setCodexAuthGate(gate);
+
+      const { provider, createSession, sendMessage } = buildAppServerProvider();
+      await provider.initialize({ model: 'openai-codex:gpt-5' });
+
+      const chunks: any[] = [];
+      for await (const chunk of provider.sendMessage('hi', undefined, 'session-auth-required', [], process.cwd())) {
+        chunks.push(chunk);
+      }
+
+      expect(gate).toHaveBeenCalledTimes(1);
+      const errorChunk = chunks.find((c) => c.type === 'error');
+      expect(errorChunk).toBeDefined();
+      expect(errorChunk.isCodexAuthRequired).toBe(true);
+      expect(errorChunk.isAuthError).toBe(true);
+      expect(errorChunk.error).toMatch(/sign in/i);
+      expect(createSession).not.toHaveBeenCalled();
+      expect(sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('proceeds to createSession when the gate reports no auth required', async () => {
+      const gate = vi.fn(async () => ({ requiresOpenaiAuth: false }));
+      OpenAICodexProvider.setCodexAuthGate(gate);
+
+      const { provider, createSession } = buildAppServerProvider();
+      await provider.initialize({ model: 'openai-codex:gpt-5' });
+
+      const chunks: any[] = [];
+      for await (const chunk of provider.sendMessage('hi', undefined, 'session-auth-ok', [], process.cwd())) {
+        chunks.push(chunk);
+      }
+
+      expect(gate).toHaveBeenCalledTimes(1);
+      expect(chunks.some((c) => c.type === 'error' && c.isCodexAuthRequired)).toBe(false);
+      expect(createSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls through on gate failure instead of blocking the turn', async () => {
+      const gate = vi.fn(async () => { throw new Error('gate exploded'); });
+      OpenAICodexProvider.setCodexAuthGate(gate);
+
+      const { provider, createSession } = buildAppServerProvider();
+      await provider.initialize({ model: 'openai-codex:gpt-5' });
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const chunks: any[] = [];
+        for await (const chunk of provider.sendMessage('hi', undefined, 'session-gate-broken', [], process.cwd())) {
+          chunks.push(chunk);
+        }
+
+        expect(gate).toHaveBeenCalledTimes(1);
+        expect(chunks.some((c) => c.type === 'error' && c.isCodexAuthRequired)).toBe(false);
+        expect(createSession).toHaveBeenCalledTimes(1);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+  });
 });

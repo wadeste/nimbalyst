@@ -72,6 +72,8 @@ export interface TranscriptViewMessage {
   isError?: boolean;
   /** True when the error is an authentication failure */
   isAuthError?: boolean;
+  /** True when this is a Codex app-server "user not signed in" pre-flight error -- renders a CTA widget. */
+  isCodexAuthRequired?: boolean;
   /** Provider-specific metadata (e.g., Codex raw events) */
   metadata?: Record<string, unknown>;
 }
