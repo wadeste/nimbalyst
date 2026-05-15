@@ -19,6 +19,7 @@ vi.mock('node:child_process', () => ({
 vi.mock('../codexAppServer/codexAppServerBinary', () => ({
   resolveCodexBinaryPath: () => '/fake/codex',
   resolveCodexBinaryFromModules: () => '/fake/codex',
+  getCodexVendorPathEntries: () => [],
 }));
 
 import { CodexAppServerProtocol } from '../CodexAppServerProtocol';

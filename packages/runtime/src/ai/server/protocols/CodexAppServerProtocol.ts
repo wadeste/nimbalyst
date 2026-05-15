@@ -27,6 +27,7 @@
  */
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import path from 'node:path';
 import { buildDocumentAttachmentPromptText } from '../providers/codex/documentAttachmentPrompt';
 import { reverseCodexPatch, type CodexPatchKind } from '../providers/codex/patchReverse';
 import {
@@ -38,7 +39,10 @@ import {
   ToolResult,
 } from './ProtocolInterface';
 import { JsonRpcClient } from './codexAppServer/jsonRpcClient';
-import { resolveCodexBinaryPath } from './codexAppServer/codexAppServerBinary';
+import {
+  getCodexVendorPathEntries,
+  resolveCodexBinaryPath,
+} from './codexAppServer/codexAppServerBinary';
 import type {
   AnyItem,
   ApprovalResponse,
@@ -329,7 +333,7 @@ export class CodexAppServerProtocol implements AgentProtocol {
 
   private async spawnAndInit(options: SessionOptions): Promise<AppServerSessionRaw> {
     const binary = resolveCodexBinaryPath(this.resolveCodexPathOverride);
-    const env = this.buildEnv(options);
+    const env = this.buildEnv(options, binary);
     const cwd = options.workspacePath || process.cwd();
     const child = spawn(binary, ['app-server', '--listen', 'stdio://'], {
       env,
@@ -383,7 +387,7 @@ export class CodexAppServerProtocol implements AgentProtocol {
     return raw.filter((t): t is DynamicToolSpec => !!t && typeof (t as { name?: unknown }).name === 'string');
   }
 
-  private buildEnv(options: SessionOptions): NodeJS.ProcessEnv {
+  private buildEnv(options: SessionOptions, binaryPath?: string): NodeJS.ProcessEnv {
     const baseEnv: NodeJS.ProcessEnv = {};
     for (const [k, v] of Object.entries(process.env)) {
       if (v !== undefined) baseEnv[k] = v;
@@ -393,6 +397,17 @@ export class CodexAppServerProtocol implements AgentProtocol {
       for (const [k, v] of Object.entries(rawEnv as Record<string, string>)) {
         baseEnv[k] = v;
       }
+    }
+    const extraPathEntries = binaryPath ? getCodexVendorPathEntries(binaryPath) : [];
+    if (extraPathEntries.length > 0) {
+      const existingPath = baseEnv.PATH ?? baseEnv.Path ?? '';
+      const existingEntries = existingPath
+        .split(path.delimiter)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+      const mergedPath = Array.from(new Set([...extraPathEntries, ...existingEntries])).join(path.delimiter);
+      baseEnv.PATH = mergedPath;
+      delete baseEnv.Path;
     }
     if (this.apiKey) baseEnv.CODEX_API_KEY = this.apiKey;
     return baseEnv;

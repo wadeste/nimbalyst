@@ -1,6 +1,7 @@
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { getCodexTargetTriple, resolvePackagedCodexBinaryPath } from '../codexBinaryPath';
+import { getCodexVendorPathEntries } from '../../../protocols/codexAppServer/codexAppServerBinary';
 
 describe('codexBinaryPath', () => {
   it('maps supported platform/arch combinations to codex target triples', () => {
@@ -132,5 +133,58 @@ describe('codexBinaryPath', () => {
     });
 
     expect(resolved).toBe(platformBinary);
+  });
+
+  it('derives the sibling helper PATH dir for nested Codex binaries', () => {
+    const binaryPath = path.join(
+      '/tmp',
+      'node_modules',
+      '@openai',
+      'codex-win32-arm64',
+      'vendor',
+      'aarch64-pc-windows-msvc',
+      'codex',
+      'codex.exe'
+    );
+
+    const entries = getCodexVendorPathEntries(binaryPath, () => true);
+
+    expect(entries).toEqual([
+      path.join(
+        '/tmp',
+        'node_modules',
+        '@openai',
+        'codex-win32-arm64',
+        'vendor',
+        'aarch64-pc-windows-msvc',
+        'path'
+      ),
+    ]);
+  });
+
+  it('derives the sibling helper PATH dir for flattened Codex binaries', () => {
+    const binaryPath = path.join(
+      '/tmp',
+      'node_modules',
+      '@openai',
+      'codex-win32-arm64',
+      'vendor',
+      'aarch64-pc-windows-msvc',
+      'codex.exe'
+    );
+
+    const entries = getCodexVendorPathEntries(binaryPath, () => true);
+
+    expect(entries).toEqual([
+      path.join(
+        '/tmp',
+        'node_modules',
+        '@openai',
+        'codex-win32-arm64',
+        'vendor',
+        'aarch64-pc-windows-msvc',
+        'path'
+      ),
+    ]);
   });
 });

@@ -63,3 +63,25 @@ export function resolveCodexBinaryPath(
     '[CodexAppServer] could not resolve codex binary. Install @openai/codex with optional platform dependencies, or provide a packaged-resources resolver.',
   );
 }
+
+/**
+ * The native Codex launcher expects sibling helper binaries (for example the
+ * vendored `rg(.exe)` under `vendor/<triple>/path/`) to be discoverable on
+ * PATH. The official `@openai/codex` JS wrapper prepends this directory before
+ * spawning the native binary; the app-server transport must mirror that when
+ * it launches the native binary directly.
+ */
+export function getCodexVendorPathEntries(
+  binaryPath: string,
+  existsSync: (candidatePath: string) => boolean = fs.existsSync,
+): string[] {
+  if (!binaryPath) return [];
+
+  const binaryDir = path.dirname(binaryPath);
+  const archRoot = path.basename(binaryDir).toLowerCase() === 'codex'
+    ? path.dirname(binaryDir)
+    : binaryDir;
+  const helperPathDir = path.join(archRoot, 'path');
+
+  return existsSync(helperPathDir) ? [helperPathDir] : [];
+}
