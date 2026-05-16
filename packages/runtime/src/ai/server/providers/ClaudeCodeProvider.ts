@@ -1610,11 +1610,14 @@ export class ClaudeCodeProvider extends BaseAgentProvider {
    * The streaming loop breaks, the 'complete' chunk is still yielded,
    * and the AIService completion handler runs normally (including queue processing).
    * This is a graceful stop — unlike abort(), it doesn't kill the SDK subprocess.
+   *
+   * If there is no active lead query, defer to the BaseAIProvider default
+   * (hard abort) so the caller still gets a sensible signal back.
    */
-  async interruptCurrentTurn(): Promise<void> {
+  async interruptCurrentTurn(): Promise<{ method: 'interrupt' | 'abort' }> {
     if (!this.leadQuery) {
-      console.log('[CLAUDE-CODE] interruptCurrentTurn: no active lead query, nothing to interrupt');
-      return;
+      console.log('[CLAUDE-CODE] interruptCurrentTurn: no active lead query, falling back to abort');
+      return super.interruptCurrentTurn();
     }
 
     console.log('[CLAUDE-CODE] interruptCurrentTurn: interrupting active lead query');
@@ -1632,6 +1635,8 @@ export class ClaudeCodeProvider extends BaseAgentProvider {
     } catch (err) {
       console.warn('[CLAUDE-CODE] interruptCurrentTurn: interrupt() failed (transport may be closed):', err);
     }
+
+    return { method: 'interrupt' };
   }
 
   /**

@@ -1630,6 +1630,21 @@ app.whenReady().then(async () => {
     aiService = new AIService(runtimeSessionStore);
     markEnd('ai-service-init');
 
+    // Recovery sweep: any queued_prompts row that was 'executing' when the
+    // app shut down is now invisible to listPending and effectively stuck.
+    // Reset all such rows back to 'pending' so the queue auto-trigger /
+    // explicit triggerQueueProcessing can pick them up. Single broad sweep
+    // is simpler than per-session bookkeeping and is idempotent.
+    try {
+      const { getQueuedPromptsStore } = await import('./services/RepositoryManager');
+      const rolledBack = await getQueuedPromptsStore().rollbackAllExecuting();
+      if (rolledBack > 0) {
+        logger.main.info(`[Main] Boot sweep: rolled back ${rolledBack} stuck queued prompt(s) from previous run`);
+      }
+    } catch (rollbackErr) {
+      logger.main.error('[Main] Boot sweep rollbackAllExecuting failed:', rollbackErr);
+    }
+
     // Check for pending restart continuations and queue continuation prompts
     await checkForRestartContinuation(aiService);
 
