@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 <!-- Changes to existing functionality go here -->
 - Tracker row interactions now live in a shared hook, and persisted tracker view-mode state migrates legacy `'table'` entries to the renamed `'list'` mode.
+- Agent guidance now treats markdown links to Excalidraw and other custom-editor files as the default way to share visuals, with screenshots reserved for explicit verification or when a static image is useful.
 
 ### Fixed
 - Bug-report anonymizer now scrubs workspace paths and Windows path-form variants, not just the home dir. (#396)
