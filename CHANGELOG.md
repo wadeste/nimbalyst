@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 <!-- Bug fixes go here -->
+- Three unit test files (`useDialogRequestTrigger`, `useDocumentModel`, `UnifiedOnboarding.ipcTimeout`) now declare `// @vitest-environment jsdom` so they run under jsdom after vitest v3 dropped `environmentMatchGlobs`.
 - PromptForUserInput widget no longer renders a "Cannot read properties of undefined (reading 'map')" error card when the agent emits a field without its required-by-type array; the MCP handler now rejects malformed fields with a precise error so the agent can retry, and the widget drops any malformed fields it sees as a safety net for historical sessions. (#494)
 - AI sessions no longer appear to keep running forever on the mobile app after a desktop turn ends; v0.63.0 routed the "isExecuting" signal through a new lightweight wire message the server and iOS did not yet understand, so the running indicator never cleared.
 - Lexical selection-toolbar format dropdowns now render inside the editor root when portaled, so shared dropdown styling and theme backgrounds no longer disappear.
