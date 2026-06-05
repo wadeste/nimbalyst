@@ -1095,7 +1095,14 @@ export function applyMarkdownDiffToDocument(
           // box while an agent applies this diff), skip DOM-selection reconciliation
           // so Lexical doesn't pull browser focus into the contentEditable and
           // hijack the user's keystrokes.
-          const rootEl = editor.getRootElement();
+          // Guard getRootElement(): it throws in headless mode (used by tests and
+          // server-side diffing), where there is no DOM focus to protect anyway.
+          let rootEl: HTMLElement | null = null;
+          try {
+            rootEl = editor.getRootElement();
+          } catch {
+            rootEl = null;
+          }
           if (
             rootEl &&
             typeof document !== 'undefined' &&
