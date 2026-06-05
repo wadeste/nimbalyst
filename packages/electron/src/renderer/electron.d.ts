@@ -1270,6 +1270,11 @@ interface ElectronAPI {
     remote: string,
     number: number,
   ) => Promise<{ success: boolean; error?: string; data?: PullRequestTimelineEntry[] }>;
+  prConversationRefresh: (
+    workspaceId: string,
+    remote: string,
+    number: number,
+  ) => Promise<{ success: boolean; error?: string; data?: PullRequestTimelineEntry[] }>;
   prReviewThreads: (
     workspaceId: string,
     remote: string,
@@ -1325,6 +1330,12 @@ interface ElectronAPI {
     remote: string,
     number: number,
     body?: string,
+  ) => Promise<{ success: boolean; error?: string; data?: { ok: boolean } }>;
+  prComment: (
+    workspaceId: string,
+    remote: string,
+    number: number,
+    body: string,
   ) => Promise<{ success: boolean; error?: string; data?: { ok: boolean } }>;
   prMerge: (
     workspaceId: string,

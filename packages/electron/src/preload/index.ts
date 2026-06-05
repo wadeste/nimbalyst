@@ -1197,6 +1197,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('pr:checks', workspaceId, remote, number),
   prConversation: (workspaceId: string, remote: string, number: number) =>
     ipcRenderer.invoke('pr:conversation', workspaceId, remote, number),
+  prConversationRefresh: (workspaceId: string, remote: string, number: number) =>
+    ipcRenderer.invoke('pr:conversation', workspaceId, remote, number, true),
   prReviewThreads: (workspaceId: string, remote: string, number: number) =>
     ipcRenderer.invoke('pr:review-threads', workspaceId, remote, number),
   prRefresh: (workspaceId: string, remote: string, number?: number) =>
@@ -1207,6 +1209,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('pr:permissions', workspaceId, remote, number),
   prApprove: (workspaceId: string, remote: string, number: number, body?: string) =>
     ipcRenderer.invoke('pr:approve', workspaceId, remote, number, body),
+  prComment: (workspaceId: string, remote: string, number: number, body: string) =>
+    ipcRenderer.invoke('pr:comment', workspaceId, remote, number, body),
   prMerge: (
     workspaceId: string,
     remote: string,

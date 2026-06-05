@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `NIMBALYST_GH_PATH` env var to pin a non-standard `gh` CLI location for PR review. (#307)
 - Per-project GitHub account for PR review: pick a global default `gh` account in User settings and override it per project in Project settings (GitHub panel). The selected account's token is resolved from the `gh` keyring per request and never stored by Nimbalyst. (#307)
 - A guided walkthrough that introduces the PR review mode from the navigation gutter. (#307)
+- PR review Files Changed adds a "Collapsed diff" mode: a scrollable diff across all changed files with syntax highlighting, line numbers, and red/green backgrounds, switchable between unified and side-by-side (split) layouts. (#307)
 - Refresh button in the Files Mode sidebar header reloads the file tree from disk without using the Developer menu. (#259)
 <!-- New features go here -->
 - Claude Code sessions use the SDK's `permissionMode: 'auto'` classifier when workspace trust is "Allow All"; safe operations run silently, uncertain ones prompt the user. (#379)
@@ -33,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 <!-- Changes to existing functionality go here -->
+- PR review now uses a persistent master/detail layout with the PR list and filters fixed in the left sidebar. (#307)
+- PR review Files Changed groups files into a collapsible directory tree (expanded by default) and colors filenames by status instead of A/M/D letters. (#307)
+- PR list rows lead with the title at full width, moving the PR number to the metadata line so long titles stay readable. (#307)
+- PR review GitHub account settings now appear only in Developer Mode. (#307)
 - Calc Sheets now ship a Falcon 9 `.calc.md` demo and custom syntax coloring for headings, comments, variables, units, and formatters.
 
 ### Fixed

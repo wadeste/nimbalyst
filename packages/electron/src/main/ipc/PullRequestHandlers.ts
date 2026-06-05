@@ -399,12 +399,13 @@ export function registerPullRequestHandlers(): void {
       workspaceId: string,
       remote: string,
       number: number,
+      noCache = false,
     ): Promise<IPCResponse<TimelineEntry[]>> => {
       if (!workspaceId || !remote || !number) {
         return { success: false, error: 'workspaceId, remote, number required' };
       }
       try {
-        const timeline = await getService().getConversation(workspaceId, remote, number);
+        const timeline = await getService().getConversation(workspaceId, remote, number, { noCache });
         return { success: true, data: timeline };
       } catch (error: unknown) {
         logger.error('pr:conversation failed', { remote, number, error });
@@ -525,6 +526,30 @@ export function registerPullRequestHandlers(): void {
         return { success: true, data: { ok: true } };
       } catch (error: unknown) {
         logger.error('pr:approve failed', { remote, number, error });
+        return ghErrorResponse(error);
+      }
+    },
+  );
+
+  safeHandle(
+    'pr:comment',
+    async (
+      _event,
+      workspaceId: string,
+      remote: string,
+      number: number,
+      body: string,
+    ): Promise<IPCResponse<{ ok: boolean }>> => {
+      if (!workspaceId || !remote || !number || !body?.trim()) {
+        return { success: false, error: 'workspaceId, remote, number, body required' };
+      }
+      try {
+        const service = getService();
+        await service.commentOnPullRequest(workspaceId, remote, number, body.trim());
+        emitPrListUpdated(workspaceId, remote);
+        return { success: true, data: { ok: true } };
+      } catch (error: unknown) {
+        logger.error('pr:comment failed', { remote, number, error });
         return ghErrorResponse(error);
       }
     },

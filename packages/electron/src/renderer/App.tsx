@@ -162,7 +162,10 @@ import { store, editorDirtyAtom, makeEditorKey } from '@nimbalyst/runtime/store'
 import { extensionPanelAIContextAtom } from './store/atoms/extensionPanels';
 import { setDiffTreeGroupByDirectoryAtom, setAgentFileScopeModeAtom, setHiddenGutterButtonsAtom, hydrateFileGutterCollapsedAtom } from './store/atoms/projectState';
 import { toggleSessionHistoryCollapsedAtom, scrollToMessageAtom, initAgentModeLayout } from './store/atoms/agentMode';
-import { setDeveloperFeatureSettingsAtom } from './store/atoms/appSettings';
+import {
+  developerModeAtom,
+  setDeveloperFeatureSettingsAtom,
+} from './store/atoms/appSettings';
 import {
   agentInsertPlanReferenceRequestAtom,
   closeActiveTabRequestAtom,
@@ -502,6 +505,7 @@ export default function App() {
 
   // Window mode - which view is active (files, agent, settings)
   const activeMode = useAtomValue(windowModeAtom);
+  const developerMode = useAtomValue(developerModeAtom);
   const setActiveMode = useSetAtom(setWindowModeAtom);
   const toggleAgentCollapsed = useSetAtom(toggleSessionHistoryCollapsedAtom);
   const updateDeveloperSettings = useSetAtom(setDeveloperFeatureSettingsAtom);
@@ -510,6 +514,12 @@ export default function App() {
   useEffect(() => {
     activeModeStateRef.current = activeMode;
   }, [activeMode]);
+
+  useEffect(() => {
+    if (activeMode === 'pr-review' && !developerMode) {
+      setActiveMode('files');
+    }
+  }, [activeMode, developerMode, setActiveMode]);
 
   const openMarketplaceInstallRequest = useCallback((request: { extensionId: string; requestedAt?: string }) => {
     if (!request.extensionId) return;
@@ -2200,10 +2210,12 @@ export default function App() {
             <div
               data-layout="pr-review-mode-wrapper"
               className={`flex-1 flex-col overflow-hidden min-h-0 ${
-                activeMode === 'pr-review' && !isFullscreenPanelActive ? 'flex' : 'hidden'
+                activeMode === 'pr-review' && developerMode && !isFullscreenPanelActive
+                  ? 'flex'
+                  : 'hidden'
               }`}
             >
-              {workspacePath && (
+              {workspacePath && developerMode && (
                 <PullRequestMode
                   workspacePath={workspacePath}
                   workspaceName={workspaceName || ''}

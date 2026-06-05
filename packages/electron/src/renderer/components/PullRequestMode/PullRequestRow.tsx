@@ -16,7 +16,9 @@ interface PullRequestRowProps {
   onSelect: (id: string) => void;
 }
 
-function stateBadge(pr: PullRequestRowData): { label: string; className: string; icon: string } {
+function stateBadge(
+  pr: PullRequestRowData,
+): { label: string; className: string; icon: string } | null {
   if (pr.isDraft) {
     return { label: 'Draft', className: 'text-nim-muted bg-nim-tertiary', icon: 'edit_note' };
   }
@@ -26,7 +28,7 @@ function stateBadge(pr: PullRequestRowData): { label: string; className: string;
     case 'closed':
       return { label: 'Closed', className: 'text-white bg-[var(--nim-error)]', icon: 'cancel' };
     default:
-      return { label: 'Open', className: 'text-white bg-[var(--nim-success)]', icon: 'radio_button_unchecked' };
+      return null;
   }
 }
 
@@ -58,10 +60,8 @@ export function PullRequestRow({ pr, selected, onSelect }: PullRequestRowProps):
         selected ? 'bg-nim-active' : 'hover:bg-nim-tertiary'
       }`}
     >
-      <span className="text-nim-faint text-xs font-mono w-12 shrink-0">#{pr.number}</span>
-
-      <span className="flex-1 min-w-0">
-        <span className="flex items-center gap-1.5">
+      <span className="flex-1 min-w-0 overflow-hidden">
+        <span className="flex items-center gap-1.5 min-w-0">
           <span className="truncate text-sm text-nim">{pr.title}</span>
           {conflicting && (
             <MaterialSymbol
@@ -71,9 +71,10 @@ export function PullRequestRow({ pr, selected, onSelect }: PullRequestRowProps):
             />
           )}
         </span>
-        <span className="flex items-center gap-2 mt-0.5 text-[11px] text-nim-faint">
+        <span className="flex items-center gap-2 mt-0.5 text-[11px] text-nim-faint min-w-0">
+          <span className="font-bold font-mono">#{pr.number}</span>
           {pr.authorLogin && <span className="truncate max-w-[120px]">{pr.authorLogin}</span>}
-          <span className="truncate max-w-[160px] font-mono" title={pr.headRef}>
+          <span className="truncate min-w-0 font-mono" title={pr.headRef}>
             {pr.headRef}
           </span>
           {pr.reviewers.length > 0 && (
@@ -82,22 +83,21 @@ export function PullRequestRow({ pr, selected, onSelect }: PullRequestRowProps):
               {pr.reviewers.length}
             </span>
           )}
+          <span className="ml-auto shrink-0 flex items-center gap-2">
+            {ci && (
+              <MaterialSymbol icon={ci.icon} size={14} className={ci.className} />
+            )}
+            {badge && (
+              <span
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${badge.className}`}
+              >
+                <MaterialSymbol icon={badge.icon} size={12} />
+                {badge.label}
+              </span>
+            )}
+            <span className="shrink-0">{formatRelative(pr.updatedAt)}</span>
+          </span>
         </span>
-      </span>
-
-      {ci && (
-        <MaterialSymbol icon={ci.icon} size={16} className={`${ci.className} shrink-0`} />
-      )}
-
-      <span
-        className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${badge.className}`}
-      >
-        <MaterialSymbol icon={badge.icon} size={12} />
-        {badge.label}
-      </span>
-
-      <span className="shrink-0 w-16 text-right text-[11px] text-nim-faint">
-        {formatRelative(pr.updatedAt)}
       </span>
     </button>
   );

@@ -40,6 +40,9 @@ export function ConversationTab({
   const [threadsTruncated, setThreadsTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [draftComment, setDraftComment] = useState('');
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +87,28 @@ export function ConversationTab({
   }, [workspaceId, remote, pr.number, refreshToken]);
 
   const unresolvedCount = threads.filter((t) => !t.isResolved).length;
+
+  const handleSubmitComment = async (): Promise<void> => {
+    const body = draftComment.trim();
+    if (!body || submitting) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await getPullRequestService().comment(workspaceId, remote, pr.number, body);
+      const refreshed = await getPullRequestService().refreshConversation(
+        workspaceId,
+        remote,
+        pr.number,
+      );
+      setTimeline(refreshed);
+      setDraftComment('');
+    } catch (err: unknown) {
+      setSubmitError(err instanceof Error ? err.message : 'Failed to post comment');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="pr-conversation-tab block p-4 space-y-3 overflow-y-auto flex-1 min-h-0" data-testid="pr-conversation-tab">
@@ -130,6 +155,45 @@ export function ConversationTab({
         icon="forum"
         count={timeline.length > 0 ? timeline.length : undefined}
       />
+
+      <div className="border border-nim rounded-md bg-nim-secondary">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-nim text-xs text-nim-muted">
+          <MaterialSymbol icon="add_comment" size={14} />
+          Add comment
+        </div>
+        <div className="p-3 space-y-3">
+          <textarea
+            value={draftComment}
+            onChange={(e) => setDraftComment(e.target.value)}
+            placeholder="Leave a comment on this pull request"
+            rows={4}
+            data-testid="pr-comment-input"
+            className="nim-input w-full resize-y text-sm min-h-[96px]"
+          />
+          {submitError && (
+            <div className="text-nim-error text-sm flex items-center gap-2">
+              <MaterialSymbol icon="error" size={16} />
+              {submitError}
+            </div>
+          )}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => void handleSubmitComment()}
+              disabled={submitting || draftComment.trim().length === 0}
+              className="flex items-center gap-1 px-3 py-1.5 rounded bg-nim-primary text-nim-on-primary hover:bg-nim-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              data-testid="pr-comment-submit"
+            >
+              {submitting ? (
+                <div className="spinner w-4 h-4 border-[2px] border-white/25 border-t-white rounded-full animate-spin" />
+              ) : (
+                <MaterialSymbol icon="send" size={14} />
+              )}
+              Comment
+            </button>
+          </div>
+        </div>
+      </div>
 
       {error && (
         <div className="text-nim-error text-sm flex items-center gap-2">

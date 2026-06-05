@@ -31,7 +31,7 @@ export function PullRequestSidebar({
 }: PullRequestSidebarProps): JSX.Element {
   return (
     <div
-      className="pr-sidebar w-full h-full flex flex-col bg-nim-secondary overflow-hidden"
+      className="pr-sidebar w-full shrink-0 flex flex-col bg-nim-secondary"
       data-testid="pr-sidebar"
     >
       <div className="px-3 py-2 border-b border-nim">
@@ -45,7 +45,7 @@ export function PullRequestSidebar({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pt-2 pb-1">
+      <div className="px-2 pt-2 pb-1">
         <div className="text-[10px] font-semibold text-nim-faint uppercase tracking-wider px-1 mb-1.5">
           Filters
         </div>

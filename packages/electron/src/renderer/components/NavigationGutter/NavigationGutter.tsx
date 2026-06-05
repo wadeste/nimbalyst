@@ -17,7 +17,12 @@ import { VoiceModeButton } from '../UnifiedAI/VoiceModeButton';
 import { useExtensionGutterButtons, useExtensionBottomPanelButtons } from '../../extensions/panels/usePanels';
 import { HelpTooltip } from '../../help';
 import { setActiveSessionAtom } from '../../store';
-import { terminalFeatureAvailableAtom, syncEnabledAtom, syncEnabledProjectsAtom } from '../../store/atoms/appSettings';
+import {
+  developerModeAtom,
+  terminalFeatureAvailableAtom,
+  syncEnabledAtom,
+  syncEnabledProjectsAtom,
+} from '../../store/atoms/appSettings';
 import { workspaceHasTeamAtom } from '../../store/atoms/collabDocuments';
 import { stytchIsSignedInAtom } from '../../store/atoms/stytchAuth';
 import { useAlphaFeature } from '../../hooks/useAlphaFeature';
@@ -96,6 +101,7 @@ export const NavigationGutter: React.FC<NavigationGutterProps> = ({
 }) => {
   const posthog = usePostHog();
   const isDevMode = import.meta.env.DEV || window.IS_DEV_MODE;
+  const developerMode = useAtomValue(developerModeAtom);
   const setActiveSession = useSetAtom(setActiveSessionAtom);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuButtonRef = useRef<HTMLButtonElement>(null);
@@ -144,7 +150,11 @@ export const NavigationGutter: React.FC<NavigationGutterProps> = ({
   // remote (detected by pullRequestListeners). Guard on workspacePath so a
   // stale remote from a previous project doesn't surface the button.
   const prRemote = useAtomValue(prRemoteAtom);
-  const hasPrRemote = !!prRemote && !!workspacePath && prRemote.workspacePath === workspacePath;
+  const hasPrRemote =
+    developerMode &&
+    !!prRemote &&
+    !!workspacePath &&
+    prRemote.workspacePath === workspacePath;
 
   // Check if mobile sync is configured for this workspace
   const syncEnabled = useAtomValue(syncEnabledAtom);

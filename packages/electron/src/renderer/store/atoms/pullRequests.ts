@@ -74,6 +74,12 @@ export type PrSortKey = 'updated' | 'created' | 'number';
 /** Detail-panel tabs. */
 export type PrDetailTab = 'conversation' | 'files' | 'commits' | 'checks';
 
+/** Files Changed tab display modes. */
+export type PrFilesViewMode = 'full' | 'patch';
+
+/** Diff orientation within the collapsed-diff (patch) stream. */
+export type PrPatchDiffLayout = 'unified' | 'split';
+
 export interface PrModeLayout {
   /** Active filter chips. `open`/`closed` are mutually exclusive. */
   activeFilters: PrFilterChip[];
@@ -87,6 +93,10 @@ export interface PrModeLayout {
   sidebarWidth: number;
   /** Detail panel width in pixels. */
   detailPanelWidth: number;
+  /** Files Changed display mode. */
+  filesViewMode: PrFilesViewMode;
+  /** Diff orientation within the collapsed-diff stream. */
+  patchDiffLayout: PrPatchDiffLayout;
 }
 
 const DEFAULT_PR_MODE_LAYOUT: PrModeLayout = {
@@ -96,6 +106,8 @@ const DEFAULT_PR_MODE_LAYOUT: PrModeLayout = {
   activeDetailTab: 'conversation',
   sidebarWidth: 220,
   detailPanelWidth: 460,
+  filesViewMode: 'full',
+  patchDiffLayout: 'unified',
 };
 
 export const prModeLayoutAtom = atom<PrModeLayout>(DEFAULT_PR_MODE_LAYOUT);
@@ -137,6 +149,8 @@ export async function initPrModeLayout(workspacePath: string): Promise<void> {
         activeDetailTab: saved.activeDetailTab ?? DEFAULT_PR_MODE_LAYOUT.activeDetailTab,
         sidebarWidth: saved.sidebarWidth ?? DEFAULT_PR_MODE_LAYOUT.sidebarWidth,
         detailPanelWidth: saved.detailPanelWidth ?? DEFAULT_PR_MODE_LAYOUT.detailPanelWidth,
+        filesViewMode: saved.filesViewMode ?? DEFAULT_PR_MODE_LAYOUT.filesViewMode,
+        patchDiffLayout: saved.patchDiffLayout ?? DEFAULT_PR_MODE_LAYOUT.patchDiffLayout,
       });
     }
   } catch (err) {

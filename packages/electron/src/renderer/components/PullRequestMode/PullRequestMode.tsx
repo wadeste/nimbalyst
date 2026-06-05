@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
+import { MaterialSymbol } from '@nimbalyst/runtime';
 import { ResizablePanel } from '../AgenticCoding/ResizablePanel';
 import {
   prRemoteAtom,
@@ -134,37 +135,45 @@ export function PullRequestMode({
   }
 
   const sidebarContent = (
-    <PullRequestSidebar
-      remote={remoteForWorkspace}
-      activeFilters={layout.activeFilters}
-      onToggleFilter={handleToggleFilter}
-    />
+    <div className="flex flex-col h-full w-full overflow-hidden bg-nim-secondary">
+      <PullRequestSidebar
+        remote={remoteForWorkspace}
+        activeFilters={layout.activeFilters}
+        onToggleFilter={handleToggleFilter}
+      />
+      <div className="min-h-0 flex-1 border-t border-nim">
+        <PullRequestListView
+          workspaceId={workspacePath}
+          remote={remoteForWorkspace}
+          isActive={isActive}
+        />
+      </div>
+    </div>
   );
 
-  // A selected PR takes over the whole content area (with a back-to-list
-  // button) instead of cramming into a side panel; the list is hidden while a
-  // PR is open. Both are kept mounted so returning to the list is instant and
-  // the Monaco diff isn't torn down mid-review by a list re-render.
   const mainContent = (
     <div className="flex flex-col h-full w-full overflow-hidden">
       <GhOnboardingBanner />
-      <div className="relative flex-1 min-h-0 overflow-hidden">
-        <div className={`absolute inset-0 ${selectedPr ? 'hidden' : 'flex'} flex-col`}>
-          <PullRequestListView
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {selectedPr ? (
+          <PullRequestDetail
             workspaceId={workspacePath}
             remote={remoteForWorkspace}
-            isActive={isActive}
+            pr={selectedPr}
+            onClose={() => setLayout({ selectedItemId: null })}
+            onOpenInWorktree={handleOpenInWorktree}
           />
-        </div>
-        {selectedPr && (
-          <div className="absolute inset-0 flex flex-col">
-            <PullRequestDetail
-              workspaceId={workspacePath}
-              remote={remoteForWorkspace}
-              pr={selectedPr}
-              onClose={() => setLayout({ selectedItemId: null })}
-              onOpenInWorktree={handleOpenInWorktree}
-            />
+        ) : (
+          <div className="flex h-full items-center justify-center px-8 text-center">
+            <div className="max-w-md space-y-3">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-nim bg-nim-secondary text-nim-faint">
+                <MaterialSymbol icon="merge" size={24} />
+              </div>
+              <div className="text-sm font-medium text-nim">Select a pull request</div>
+              <div className="text-sm text-nim-muted">
+                Pick a PR from the left to review its conversation, files, commits, and checks.
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -178,7 +187,7 @@ export function PullRequestMode({
         rightPanel={mainContent}
         leftWidth={layout.sidebarWidth}
         minWidth={160}
-        maxWidth={350}
+        maxWidth={550}
         onWidthChange={handleSidebarWidthChange}
       />
     </div>

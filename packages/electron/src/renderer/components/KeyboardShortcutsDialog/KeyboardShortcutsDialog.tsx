@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAtomValue } from 'jotai';
 import { KeyboardShortcuts, getShortcutDisplay } from '../../../shared/KeyboardShortcuts';
 import {
   getRegisteredKeybindings,
@@ -6,6 +7,7 @@ import {
   type RegisteredKeybinding,
 } from '../../extensions/commands/ExtensionCommandRegistry';
 import { getExtensionLoader } from '@nimbalyst/runtime';
+import { developerModeAtom } from '../../store/atoms/appSettings';
 
 interface KeyboardShortcutsDialogProps {
   isOpen: boolean;
@@ -82,6 +84,7 @@ function buildExtensionShortcutGroups(keybindings: RegisteredKeybinding[]): Shor
 export function KeyboardShortcutsDialog({ isOpen, onClose }: KeyboardShortcutsDialogProps) {
   const [activeTab, setActiveTab] = useState<TabId>('general');
   const [extensionGroups, setExtensionGroups] = useState<ShortcutGroup[]>([]);
+  const developerMode = useAtomValue(developerModeAtom);
 
   // Handle Escape key to close dialog
   useEffect(() => {
@@ -157,7 +160,6 @@ export function KeyboardShortcutsDialog({ isOpen, onClose }: KeyboardShortcutsDi
         { label: 'Toggle Terminal Panel', shortcut: KeyboardShortcuts.view.toggleTerminalPanel }, // shared/KeyboardShortcuts.ts:48 - Ctrl+`
         { label: 'Tracker Mode', shortcut: KeyboardShortcuts.view.trackerMode }, // shared/KeyboardShortcuts.ts:49 - Cmd+T
         { label: 'Shared Documents', shortcut: KeyboardShortcuts.view.collabMode }, // shared/KeyboardShortcuts.ts:50 - Cmd+D
-        { label: 'Pull Requests', shortcut: KeyboardShortcuts.view.prReviewMode }, // shared/KeyboardShortcuts.ts:52 - Cmd+U
         { label: 'Toggle Sidebar', shortcut: KeyboardShortcuts.view.toggleSidebar }, // shared/KeyboardShortcuts.ts:51 - Cmd+B
         { label: 'Navigate Back', shortcut: KeyboardShortcuts.view.navigateBack }, // shared/KeyboardShortcuts.ts:52 - Cmd+[
         { label: 'Navigate Forward', shortcut: KeyboardShortcuts.view.navigateForward }, // shared/KeyboardShortcuts.ts:53 - Cmd+]
@@ -235,6 +237,14 @@ export function KeyboardShortcutsDialog({ isOpen, onClose }: KeyboardShortcutsDi
       ],
     },
   ];
+
+  if (developerMode) {
+    const viewGroup = generalShortcuts.find((group) => group.title === 'View');
+    viewGroup?.shortcuts.splice(8, 0, {
+      label: 'Pull Requests',
+      shortcut: KeyboardShortcuts.view.prReviewMode,
+    });
+  }
 
   const shortcutGroups = activeTab === 'general'
     ? generalShortcuts

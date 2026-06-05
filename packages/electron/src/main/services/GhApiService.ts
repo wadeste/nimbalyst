@@ -380,6 +380,10 @@ interface GhContentsPayload {
   type?: string;
 }
 
+function isNotFoundError(error: unknown): boolean {
+  return error instanceof GhApiError && /Not Found|HTTP 404/i.test(error.stderr);
+}
+
 function mapPullToRow(workspaceId: string, remote: Remote, payload: GhPullPayload): PullRequestRow {
   const isMerged = payload.merged === true || Boolean(payload.merged_at);
   const state: PullRequestRow['state'] = isMerged
@@ -799,13 +803,15 @@ export class GhApiService {
     workspaceId: string,
     remote: Remote,
     number: number,
+    options: { noCache?: boolean } = {},
   ): Promise<TimelineEntry[]> {
     const entries: TimelineEntry[] = [];
+    const cacheSeconds = options.noCache ? 0 : DEFAULT_CACHE_DETAIL_SECONDS;
 
     try {
       const stdout = await this.ghApi(
         buildApiArgs(`repos/${remote}/issues/${number}/comments?per_page=${API_PAGE_SIZE}`, {
-          cacheSeconds: DEFAULT_CACHE_DETAIL_SECONDS,
+          cacheSeconds,
           paginate: true,
         }),
       workspaceId,);
@@ -827,7 +833,7 @@ export class GhApiService {
     try {
       const stdout = await this.ghApi(
         buildApiArgs(`repos/${remote}/pulls/${number}/reviews?per_page=${API_PAGE_SIZE}`, {
-          cacheSeconds: DEFAULT_CACHE_DETAIL_SECONDS,
+          cacheSeconds,
           paginate: true,
         }),
       workspaceId,);
@@ -858,12 +864,23 @@ export class GhApiService {
     path: string,
   ): Promise<string> {
     const encoded = path.split('/').map(encodeURIComponent).join('/');
-    const stdout = await this.ghApi(
-      buildApiArgs(`repos/${remote}/contents/${encoded}?ref=${encodeURIComponent(ref)}`, {
-        cacheSeconds: DEFAULT_CACHE_DETAIL_SECONDS,
-      }),
-      workspaceId,
-    );
+    let stdout: string;
+    try {
+      stdout = await this.ghApi(
+        buildApiArgs(`repos/${remote}/contents/${encoded}?ref=${encodeURIComponent(ref)}`, {
+          cacheSeconds: DEFAULT_CACHE_DETAIL_SECONDS,
+        }),
+        workspaceId,
+      );
+    } catch (error) {
+      // For added/removed/renamed files, one side of the comparison may
+      // legitimately not exist at the requested ref. Treat 404 as "empty side"
+      // instead of surfacing an error in the PR diff UI.
+      if (isNotFoundError(error)) {
+        return '';
+      }
+      throw error;
+    }
     const payload = JSON.parse(stdout.trim()) as GhContentsPayload;
     if (payload.type && payload.type !== 'file') {
       return '';
@@ -953,6 +970,27 @@ export class GhApiService {
     if (body && body.trim()) {
       args.push('-f', `body=${body}`);
     }
+    await this.ghApi(args, workspaceId);
+  }
+
+  async commentOnPullRequest(
+    workspaceId: string,
+    remote: Remote,
+    number: number,
+    body: string,
+  ): Promise<void> {
+    const args = [
+      'api',
+      '-X',
+      'POST',
+      `repos/${remote}/issues/${number}/comments`,
+      '-H',
+      'Accept: application/vnd.github+json',
+      '-H',
+      'X-GitHub-Api-Version: 2022-11-28',
+      '-f',
+      `body=${body}`,
+    ];
     await this.ghApi(args, workspaceId);
   }
 
@@ -1066,4 +1104,3 @@ export class GhApiService {
     return { threads, truncated: Boolean(node?.pageInfo?.hasNextPage) };
   }
 }
-

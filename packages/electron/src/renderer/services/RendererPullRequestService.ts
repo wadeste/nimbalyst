@@ -119,6 +119,15 @@ export class RendererPullRequestService {
     return unwrap(res, 'pr:conversation');
   }
 
+  async refreshConversation(
+    workspaceId: string,
+    remote: string,
+    number: number,
+  ): Promise<PullRequestTimelineEntry[]> {
+    const res = await requireApi().prConversationRefresh(workspaceId, remote, number);
+    return unwrap(res, 'pr:conversation-refresh');
+  }
+
   async refresh(workspaceId: string, remote: string, number?: number): Promise<number> {
     const res = await requireApi().prRefresh(workspaceId, remote, number);
     const data = unwrap(res, 'pr:refresh');
@@ -148,6 +157,11 @@ export class RendererPullRequestService {
   async approve(workspaceId: string, remote: string, number: number, body?: string): Promise<void> {
     const res = await requireApi().prApprove(workspaceId, remote, number, body);
     unwrap(res, 'pr:approve');
+  }
+
+  async comment(workspaceId: string, remote: string, number: number, body: string): Promise<void> {
+    const res = await requireApi().prComment(workspaceId, remote, number, body);
+    unwrap(res, 'pr:comment');
   }
 
   async merge(
