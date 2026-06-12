@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The CLI terminal drawer no longer steals keyboard focus from the chat input when ordinary terminal output looks like a picker.
 - Linked tracker items now show up and survive linking additional items on the SQLite backend, and commits link to session trackers again.
 - Stopping an already-idle Claude Code CLI session no longer quits the CLI and leaves the session unresponsive.
+- Claude Agent startup crashes now log detailed spawn diagnostics and auto-capture a CLI debug log on retry, and the real error message reaches the renderer log (#614).
 
 ### Removed
 <!-- Removed features go here -->

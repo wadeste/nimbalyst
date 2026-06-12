@@ -94,6 +94,12 @@ import {
 } from './claudeCode/toolAuthorization';
 import { ClaudeCodeDeps } from './claudeCode/dependencyInjection';
 import { buildSdkOptions, type PromptStreamController } from './claudeCode/sdkOptionsBuilder';
+import {
+  isBunRuntimeSpawnCrash,
+  collectSpawnCrashDiagnostics,
+  armAgentSdkDebugLogging,
+  readLatestSdkDebugLogTail,
+} from './claudeCode/spawnCrashDiagnostics';
 import { applyTaskListMutation, sortTaskList, type TaskListItem } from './claudeCode/taskListReconstruct';
 
 
@@ -533,6 +539,10 @@ export class ClaudeCodeProvider extends BaseAgentProvider {
     // Capture stderr from the subprocess for diagnostics (populated inside try, read in catch)
     const stderrLines: string[] = [];
 
+    // Spawn context for native-binary crash diagnostics (#614). Populated
+    // after buildSdkOptions so the catch block can see it.
+    let spawnDiagContext: { binaryPath?: string; cwd?: string } | null = null;
+
     // Hoisted so the catch block can avoid double-yielding `complete` if the
     // result chunk's early-yield already fired before an error was thrown.
     let completeEmitted = false;
@@ -650,6 +660,7 @@ export class ClaudeCodeProvider extends BaseAgentProvider {
       const { options, promptInput, promptController } = sdkResult;
       this.helperMethod = sdkResult.helperMethod;
       this.promptController = promptController;
+      spawnDiagContext = { binaryPath: options.pathToClaudeCodeExecutable, cwd: options.cwd };
 
       // Meta-agent: override MCP config with meta-agent profile and apply tool restrictions
       if (isMetaAgent) {
@@ -1502,6 +1513,27 @@ export class ClaudeCodeProvider extends BaseAgentProvider {
           const stderrSummary = stderrLines.join('').trim().slice(0, 500);
           if (stderrSummary) {
             error.message = `${error.message}\n\nProcess output:\n${stderrSummary}`;
+          }
+        }
+
+        // #614: the bundled CLI is a Bun-compiled binary; "An unknown error
+        // occurred (Unexpected)" on exit 1 is Bun's native startup failure,
+        // emitted before any JS-level logging. Log the process attributes a
+        // child inherits from Electron (the prime suspects -- they can't be
+        // reproduced by replaying argv/env in a shell), and arm the SDK's
+        // debug mode so the next attempt passes --debug-file to the CLI.
+        if (isBunRuntimeSpawnCrash(error.message, stderrLines)) {
+          const diag = collectSpawnCrashDiagnostics(spawnDiagContext ?? {});
+          console.error(`[CLAUDE-CODE] Native binary startup crash (Bun runtime). Spawn diagnostics: ${JSON.stringify(diag)}`);
+          if (armAgentSdkDebugLogging()) {
+            console.error('[CLAUDE-CODE] Armed DEBUG_CLAUDE_AGENT_SDK for subsequent attempts in this app run -- retry the message to capture a CLI debug log.');
+          } else {
+            const debugLog = await readLatestSdkDebugLogTail().catch(() => null);
+            if (debugLog) {
+              console.error(`[CLAUDE-CODE] SDK/CLI debug log tail (${debugLog.path}):\n${debugLog.tail}`);
+            } else {
+              console.error('[CLAUDE-CODE] Debug mode was armed but no SDK/CLI debug log was found -- the binary crashed before writing one.');
+            }
           }
         }
       }
