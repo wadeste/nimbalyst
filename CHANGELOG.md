@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 <!-- New features go here -->
+- Share a plan with your team straight from the tracker — a Share toggle in the tracker item view publishes the plan to the team's shared tracker.
 - Team admins can re-share the current encryption key with all members from Settings → Security & encryption, fixing teammates who saw "Encrypted document (key unavailable)".
 
 ### Changed
