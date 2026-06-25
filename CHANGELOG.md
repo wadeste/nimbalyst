@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Reference a tracker item from any document or AI chat: type `#` to pick an existing item and insert a live chip showing its current status and title (filter by type with `bug:`, search by key or title), with a one-click way to turn a legacy inline tracker into a real tracked item. The AI now links tracker items as clickable chips too.
 - New Nimbalyst Memory extension: indexes your project notes and surfaces relevant facts to the AI and voice agent for grounded answers.
 - Extensions can now contribute tools and session context to the voice agent.
 - Search box on the Installed Extensions settings pane to filter the list.
@@ -17,11 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Claude Code sessions store and sync far less redundant data (no more full original-file copies on every edit), shrinking the local database and mobile transfers.
+- Updating a tracker item no longer links it to the current AI session unless you ask, so sessions stop accumulating items the agent merely touched.
 
 ### Fixed
 - AI session status no longer stays stuck on "running" in the mobile app after a turn finishes on desktop.
 - Stop prompting to run the Gemini backend at startup; it now starts only when you actually use Gemini.
 - Remove a stray "[Full message elided...]" bubble that appeared in the mobile transcript but not on desktop.
+- Tracker item detail no longer gets stuck on "Connecting…" when the team lookup hangs; it falls back to local mode.
+- Tracker type counts no longer briefly flash "0" while tracker data is still loading.
+- Reopened secondary projects now scope the tracker list to the correct project instead of the startup project's items.
+- Fixed tracker field corruption on the SQLite backend caused by merging JSON updates.
 
 ### Removed
 <!-- Removed features go here -->

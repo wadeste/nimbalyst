@@ -241,7 +241,18 @@ export const TrackerItemDetail: React.FC<TrackerItemDetailProps> = ({
     setTeamMembers([]);
     (async () => {
       try {
-        const teamResult = await window.electronAPI.invoke('team:find-for-workspace', workspacePath);
+        // NIM-638: bound the team lookup with a client-side timeout. Without it,
+        // a hung `team:find-for-workspace` IPC leaves teamOrgId === undefined
+        // (pending) forever, so the content editor stays stuck on "Connecting...".
+        // On timeout, degrade to local mode (null) -- the body still paints from
+        // the cold cache instead of spinning indefinitely.
+        const TEAM_LOOKUP_TIMEOUT_MS = 12_000;
+        const teamResult = await Promise.race([
+          window.electronAPI.invoke('team:find-for-workspace', workspacePath),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('team:find-for-workspace timed out')), TEAM_LOOKUP_TIMEOUT_MS),
+          ),
+        ]);
         if (cancelled) return;
         const orgId: string | null = teamResult?.success && teamResult.team?.orgId
           ? teamResult.team.orgId
