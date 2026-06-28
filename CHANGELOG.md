@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Voice mode now always speaks in your configured preferred language, including on mobile, instead of sometimes starting up in a different language.
 - The iOS voice agent now reliably speaks its response when it wakes up after a coding agent finishes a task.
 - Voice replies no longer speed up or skip near the end of longer responses.
+- Mobile voice replies no longer garble, overlap, or click — responses play one at a time and fade out cleanly when you interrupt.
 
 ### Removed
 <!-- Removed features go here -->

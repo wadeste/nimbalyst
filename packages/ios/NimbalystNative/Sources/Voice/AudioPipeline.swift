@@ -3,79 +3,6 @@
 import AudioToolbox
 import os
 
-// MARK: - Lock-free SPSC Ring Buffer
-
-/// Single-producer single-consumer ring buffer for real-time audio playback.
-/// Producer (main thread) writes 48kHz PCM16 via `write()`.
-/// Consumer (audio thread) reads via `read()`, filling remainder with silence.
-///
-/// Thread safety: Each index is written by exactly one thread and read by the other (SPSC pattern).
-/// On ARM64, naturally-aligned word loads/stores are atomic, which is sufficient for SPSC.
-nonisolated final class PlaybackRingBuffer: @unchecked Sendable {
-    private let storage: UnsafeMutablePointer<Int16>
-    private let capacity: Int
-
-    nonisolated(unsafe) private var writePos: Int = 0
-    nonisolated(unsafe) private var readPos: Int = 0
-
-    init(capacity: Int) {
-        self.capacity = capacity
-        self.storage = .allocate(capacity: capacity)
-        self.storage.initialize(repeating: 0, count: capacity)
-    }
-
-    deinit { storage.deallocate() }
-
-    var availableFrames: Int {
-        let w = writePos, r = readPos
-        return w >= r ? w - r : capacity - r + w
-    }
-
-    /// Write frames. Returns number actually written.
-    func write(_ src: UnsafePointer<Int16>, count: Int) -> Int {
-        let r = readPos, w = writePos
-        let free = r > w ? r - w - 1 : capacity - w + r - 1
-        let n = min(count, free)
-        guard n > 0 else { return 0 }
-
-        let first = min(n, capacity - w)
-        storage.advanced(by: w).update(from: src, count: first)
-        if n > first {
-            storage.update(from: src.advanced(by: first), count: n - first)
-        }
-        writePos = (w + n) % capacity
-        return n
-    }
-
-    /// Read frames into dst. Fills any shortfall with silence. Returns frames of real data read.
-    func read(_ dst: UnsafeMutablePointer<Int16>, count: Int) -> Int {
-        let w = writePos, r = readPos
-        let avail = w >= r ? w - r : capacity - r + w
-        let n = min(count, avail)
-
-        if n > 0 {
-            let first = min(n, capacity - r)
-            dst.update(from: storage.advanced(by: r), count: first)
-            if n > first {
-                dst.advanced(by: first).update(from: storage, count: n - first)
-            }
-            readPos = (r + n) % capacity
-        }
-
-        // Fill remainder with silence
-        if n < count {
-            dst.advanced(by: n).initialize(repeating: 0, count: count - n)
-        }
-
-        return n
-    }
-
-    func reset() {
-        readPos = 0
-        writePos = 0
-    }
-}
-
 // MARK: - AudioPipeline
 
 /// Audio capture and playback for OpenAI Realtime API.
@@ -491,8 +418,15 @@ final class AudioPipeline: @unchecked Sendable {
         }
     }
 
-    func stopPlayback() {
-        playbackRingBuffer.reset()
+    /// Stop playback. On barge-in pass `fadeOut: true` to ramp the buffered audio
+    /// to silence over ~10ms (no click); a full teardown can hard-reset.
+    func stopPlayback(fadeOut: Bool = false) {
+        if fadeOut {
+            // 10ms @ 48kHz
+            playbackRingBuffer.fadeOutAndTruncate(fadeFrames: 480)
+        } else {
+            playbackRingBuffer.reset()
+        }
         endOfPlaybackMarked = false
         isPlaying = false
     }

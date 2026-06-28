@@ -27,6 +27,22 @@ public final class VoiceAgent: ObservableObject {
     @Published public var activeSessionId: String?
     @Published public private(set) var pendingPrompt: PendingPrompt?
 
+    /// The tool call the voice agent is currently executing, if any. Drives the
+    /// floating-mic tool indicator (animated ring + corner badge). Set when a
+    /// function call arrives and cleared when its result is sent back, so async
+    /// tools (memory/session lookups proxied to the desktop) stay lit until done.
+    @Published public private(set) var currentToolCall: ActiveToolCall?
+
+    public struct ActiveToolCall: Equatable {
+        public let name: String
+        public let callId: String
+    }
+
+    /// requestId of an in-flight voice-initiated `create_session`, awaiting the
+    /// desktop's `createSessionResponseBroadcast`. Used to navigate this device
+    /// (and only this device) to the new session once it is created.
+    private var pendingCreateSessionRequestId: String?
+
     public struct PendingPrompt: Identifiable {
         public let id = UUID()
         public let sessionId: String
@@ -145,6 +161,7 @@ public final class VoiceAgent: ObservableObject {
         realtimeClient = nil
         audioPipeline.shutdown()
         pendingPrompt = nil
+        currentToolCall = nil
         queuedCompletions.removeAll()
         state = .disconnected
     }
@@ -154,10 +171,8 @@ public final class VoiceAgent: ObservableObject {
     /// Mirrors the barge-in path used when the user speaks over the agent.
     public func interrupt() {
         guard state == .speaking || state == .processing else { return }
-        audioPipeline.stopPlayback()
-        if realtimeClient?.hasActiveResponse == true {
-            realtimeClient?.cancelResponse()
-        }
+        audioPipeline.stopPlayback(fadeOut: true)
+        realtimeClient?.cancelResponse()
         state = .listening
         resetIdleTimer()
     }
@@ -307,11 +322,13 @@ public final class VoiceAgent: ObservableObject {
 
         client.onSpeechStarted = { [weak self] in
             guard let self else { return }
-            // User started speaking - interrupt agent playback if active
-            self.audioPipeline.stopPlayback()
-            if self.realtimeClient?.hasActiveResponse == true {
-                self.realtimeClient?.cancelResponse()
-            }
+            // User started speaking - interrupt agent playback if active.
+            // Fade rather than hard-cut, and always cancel: the local
+            // hasActiveResponse flag races the server (audio streams faster than
+            // realtime, so it's often still playing after response.done), and
+            // cancelResponse() now suppresses the benign "no active response".
+            self.audioPipeline.stopPlayback(fadeOut: true)
+            self.realtimeClient?.cancelResponse()
             self.state = .listening
             self.cancelIdleTimer()
         }
@@ -322,7 +339,19 @@ public final class VoiceAgent: ObservableObject {
         }
 
         client.onFunctionCall = { [weak self] name, arguments, callId in
-            self?.handleToolCall(name: name, arguments: arguments, callId: callId)
+            guard let self else { return }
+            // Light up the floating-mic tool indicator for the duration of the call.
+            self.currentToolCall = ActiveToolCall(name: name, callId: callId)
+            self.handleToolCall(name: name, arguments: arguments, callId: callId)
+        }
+
+        client.onFunctionResultSent = { [weak self] callId in
+            guard let self else { return }
+            // Clear the indicator only for the call that just finished, so a
+            // newer in-flight tool call isn't dismissed by an older one's result.
+            if self.currentToolCall?.callId == callId {
+                self.currentToolCall = nil
+            }
         }
 
         client.onError = { [weak self] type, message in
@@ -441,7 +470,9 @@ public final class VoiceAgent: ObservableObject {
         }
 
         do {
-            try syncManager.createSession(projectId: resolvedProjectId)
+            // Remember the requestId so we navigate this device to the new session
+            // when the desktop's create-session response arrives (see AppState).
+            pendingCreateSessionRequestId = try syncManager.createSession(projectId: resolvedProjectId)
             logger.info("create_session: sent request for project \(resolvedProjectId)")
             realtimeClient?.sendFunctionCallResult(
                 callId: callId,
@@ -454,6 +485,15 @@ public final class VoiceAgent: ObservableObject {
                 output: "{\"success\":false,\"error\":\"Failed to request a new session\"}"
             )
         }
+    }
+
+    /// Returns true if `requestId` matches a `create_session` this agent issued
+    /// (clearing it), meaning this device should navigate to the new session.
+    /// Other paired devices receive the same broadcast but return false here.
+    public func consumePendingCreateSession(requestId: String) -> Bool {
+        guard pendingCreateSessionRequestId == requestId else { return false }
+        pendingCreateSessionRequestId = nil
+        return true
     }
 
     /// Resolve the target project: the configured projectId, or fall back to the
