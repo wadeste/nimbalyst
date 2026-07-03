@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive input prompts no longer collapse into plain chat if you take longer than 5 minutes to answer.
 - Open custom-editor tabs (e.g. Replicad, Excalidraw) now refresh when an agent edits the file, instead of staying stale until closed and reopened.
 - Claude Code sessions now end with an error instead of spinning forever if the agent stream silently stalls.
+- iOS: session badges now label Fable 5 and Sonnet 5 sessions instead of showing a generic "Claude Agent" fallback.
 
 ### Removed
 <!-- Removed features go here -->
