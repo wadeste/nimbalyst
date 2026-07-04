@@ -164,7 +164,7 @@ import {
 import { setStorageBackend, getExtensionEditorAPI } from '@nimbalyst/runtime';
 import { store, editorDirtyAtom, makeEditorKey } from '@nimbalyst/runtime/store';
 import { extensionPanelAIContextAtom } from './store/atoms/extensionPanels';
-import { setDiffTreeGroupByDirectoryAtom, setAgentFileScopeModeAtom, setHiddenGutterButtonsAtom, hydrateFileGutterCollapsedAtom } from './store/atoms/projectState';
+import { setDiffTreeGroupByDirectoryAtom, setAgentFileScopeModeAtom, hydrateFileGutterCollapsedAtom } from './store/atoms/projectState';
 import { toggleSessionHistoryCollapsedAtom, scrollToMessageAtom, initAgentModeLayout } from './store/atoms/agentMode';
 import {
   developerModeAtom,
@@ -512,7 +512,6 @@ export default function App() {
   // Workspace state hydration setters
   const setDiffTreeGroupByDirectory = useSetAtom(setDiffTreeGroupByDirectoryAtom);
   const setAgentFileScopeMode = useSetAtom(setAgentFileScopeModeAtom);
-  const setHiddenGutterButtons = useSetAtom(setHiddenGutterButtonsAtom);
   const hydrateFileGutterCollapsed = useSetAtom(hydrateFileGutterCollapsedAtom);
 
   // Check if a fullscreen extension panel is active (hides other content modes)
@@ -695,10 +694,10 @@ export default function App() {
         if (state?.agentFileScopeMode !== undefined) {
           setAgentFileScopeMode({ fileScopeMode: state.agentFileScopeMode, workspacePath });
         }
-        // Hydrate hidden gutter buttons into Jotai atom
-        if (state?.hiddenGutterButtons?.length) {
-          setHiddenGutterButtons(state.hiddenGutterButtons);
-        }
+        // Gutter icon visibility is now a GLOBAL preference (see
+        // appSettings gutterCustomizationAtom, hydrated at startup); the
+        // legacy per-project hiddenGutterButtons is only read by the one-shot
+        // migration in main. Do not hydrate it here.
         // Hydrate FileGutter collapsed state per type into Jotai atom
         if (state?.fileGutterCollapsed) {
           hydrateFileGutterCollapsed(state.fileGutterCollapsed);
@@ -707,7 +706,7 @@ export default function App() {
       .catch(error => {
         console.error('[App] Failed to load workspace state:', error);
       });
-  }, [workspacePath, setDiffTreeGroupByDirectory, setAgentFileScopeMode, setHiddenGutterButtons, hydrateFileGutterCollapsed]);
+  }, [workspacePath, setDiffTreeGroupByDirectory, setAgentFileScopeMode, hydrateFileGutterCollapsed]);
 
   // Save active mode when it changes
   useEffect(() => {

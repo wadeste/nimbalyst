@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 <!-- New features go here -->
+- Customize the navigation gutter: hide or show any icon and drag to reorder them via a Customize Gutter popover (right-click the gutter), with preferences applied across all projects.
 
 ### Changed
 <!-- Changes to existing functionality go here -->

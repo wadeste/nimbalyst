@@ -368,6 +368,7 @@ A concise reference of all features in the product. Keep this up to date as feat
 - Global semantic search (Cmd+Shift+O) — a Quick Open "Search" tab that finds any tracker or document by meaning (hybrid semantic + keyword), powered by the Nimbalyst Memory extension; appears only when that extension is enabled. Optionally indexes AI sessions too (off by default)
 - Mouse back/forward button support
 - Breadcrumb navigation
+- Customizable navigation gutter — hide/show any gutter icon (modes, extension panels, indicators) and drag-to-reorder within a group via a "Customize Gutter" popover (right-click the gutter) or right-click any icon to hide it; preferences are global across projects, and the account/settings button always stays visible
 
 ## Window & Application
 
