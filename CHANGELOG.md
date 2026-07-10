@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 <!-- Changes to existing functionality go here -->
+- New projects now derive their tracker issue-key prefix from the project name instead of always using `NIM`.
 
 ### Fixed
 <!-- Bug fixes go here -->
