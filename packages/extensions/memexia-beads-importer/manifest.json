@@ -1,0 +1,45 @@
+{
+  "id": "com.nimbalyst.memexia-beads-importer",
+  "name": "Memexia Beads Importer",
+  "version": "0.1.0",
+  "description": "Import memexia beads (bb) issues into the Nimbalyst tracker as native items that link back to their source. Uses your installed `bb` CLI for workspace access and Dolt auth.",
+  "author": "Nimbalyst",
+  "main": "dist/index.js",
+  "apiVersion": "1.0.0",
+  "defaultEnabled": true,
+  "permissions": {
+    "network": true
+  },
+  "contributions": {
+    "trackerImporters": [
+      {
+        "id": "memexia-beads",
+        "displayName": "Memexia Beads",
+        "icon": "network_node",
+        "urnScheme": "beads",
+        "backendModuleId": "memexia-beads-backend",
+        "importsAs": ["task", "plan", "bug", "feature"]
+      }
+    ],
+    "backendModules": [
+      {
+        "id": "memexia-beads-backend",
+        "entry": "dist/backend.js",
+        "runtime": "utility-process",
+        "permissions": [],
+        "enablement": {
+          "default": "disabled",
+          "promptOn": "firstUse",
+          "purpose": "Read memexia beads issues via your installed `bb` CLI (which connects to your Dolt workspaces) so you can import them into the tracker."
+        }
+      }
+    ]
+  },
+  "marketplace": {
+    "categories": ["developer-tools", "integration"],
+    "tags": ["beads", "bb", "memexia", "tracker", "import", "dolt"],
+    "icon": "network_node",
+    "tagline": "Import memexia beads into your tracker",
+    "fileTypes": []
+  }
+}
