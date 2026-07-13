@@ -1,0 +1,60 @@
+# Reference schema for the `bead` tracker type.
+# The importer creates every imported bead as this type (manifest importsAs: ["bead"]),
+# so it MUST be registered in the workspace you import into. Copy this file to
+#   <your-workspace>/.nimbalyst/trackers/bead.yaml
+# then restart Nimbalyst.
+type: bead
+displayName: Bead
+displayNamePlural: Beads
+icon: network_node
+color: '#8b5cf6'
+modes:
+  inline: true
+  fullDocument: true
+sync:
+  mode: local
+  scope: workspace
+idPrefix: bd
+idFormat: ulid
+fields:
+  - name: title
+    type: string
+    required: true
+    displayInline: true
+  - name: status
+    type: select
+    required: true
+    default: to-do
+    options:
+      - { value: to-do, label: To Do, icon: circle, color: '#64748b' }
+      - { value: in-progress, label: In Progress, icon: motion_photos_on, color: '#f59e0b' }
+      - { value: blocked, label: Blocked, icon: block, color: '#dc2626' }
+      - { value: done, label: Done, icon: check_circle, color: '#10b981' }
+  - name: priority
+    type: select
+    required: false
+    options:
+      - { value: low, label: Low, icon: arrow_downward }
+      - { value: medium, label: Medium, icon: remove }
+      - { value: high, label: High, icon: arrow_upward }
+      - { value: critical, label: Critical, icon: priority_high, color: '#dc2626' }
+  - name: tags
+    type: array
+    itemType: string
+    displayInline: false
+roles:
+  title: title
+  workflowStatus: status
+  priority: priority
+  tags: tags
+statusBarLayout:
+  - row:
+      - { field: status, width: 200 }
+      - { field: priority, width: 150 }
+  - row:
+      - { field: tags, width: auto }
+inlineTemplate: '{icon} {title} {status} {priority}'
+tableView:
+  defaultColumns: [title, status, priority, tags, updated]
+  sortable: true
+  filterable: true

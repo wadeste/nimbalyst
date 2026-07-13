@@ -94,6 +94,14 @@ describe('mapType', () => {
   });
 });
 
+describe('single-type import (bead config)', () => {
+  it('maps every bb issue_type to the sole `bead` type', () => {
+    for (const t of ['task', 'bug', 'feature', 'epic', 'goal', 'reference', 'fact', undefined]) {
+      expect(mapType(t as string | undefined, ['bead'])).toBe('bead');
+    }
+  });
+});
+
 describe('normalizeLabels', () => {
   it('accepts string arrays and object arrays', () => {
     expect(normalizeLabels(['a', 'b'])).toEqual(['a', 'b']);
@@ -171,16 +179,18 @@ describe('rowToSnapshot', () => {
         updated_at: '2026-07-13T00:00:00Z',
       },
       '/home/steven/mx/mx_brain',
-      ALLOWED,
+      ['bead'],
     );
     expect(snap.external.providerId).toBe('memexia-beads');
     expect(snap.external.externalId).toBe('/home/steven/mx/mx_brain::mx-42');
     expect(snap.external.urn).toBe('beads://mx_brain/mx-42');
-    expect(snap.primaryType).toBe('bug');
+    expect(snap.primaryType).toBe('bead');
     expect(snap.status).toBe('in-progress');
     expect(snap.priority).toBe('high');
     expect(snap.labels).toEqual(['agent:work']);
     expect(snap.authorIdentity?.email).toBe('steven@digiital.agency');
     expect(snap.title).toBe('A bug');
+    // Original bb kind is preserved in the body footer, not the primaryType.
+    expect(snap.body).toContain('type `bug`');
   });
 });

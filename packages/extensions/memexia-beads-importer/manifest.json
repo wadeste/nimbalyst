@@ -18,7 +18,7 @@
         "icon": "network_node",
         "urnScheme": "beads",
         "backendModuleId": "memexia-beads-backend",
-        "importsAs": ["task", "plan", "bug", "feature"]
+        "importsAs": ["bead"]
       }
     ],
     "backendModules": [

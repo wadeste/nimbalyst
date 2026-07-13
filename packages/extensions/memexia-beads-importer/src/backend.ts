@@ -356,7 +356,8 @@ export function composeBody(row: BeadRow, urn: string): string {
   const acceptance = row.acceptance || row.acceptance_criteria;
   if (acceptance) sections.push(`## Acceptance\n\n${acceptance.trim()}`);
   if (row.notes) sections.push(`## Notes\n\n${row.notes.trim()}`);
-  sections.push(`---\n\n_Imported from memexia beads \`${row.id ?? ''}\` (\`${urn}\`)._`);
+  const kind = row.issue_type ? `, type \`${row.issue_type}\`` : '';
+  sections.push(`---\n\n_Imported from memexia beads \`${row.id ?? ''}\` (\`${urn}\`)${kind}._`);
   return sections.join('\n\n');
 }
 
@@ -407,7 +408,10 @@ export function stateToListArgs(state: ImporterListFilter['state']): string[] {
   }
 }
 
-const ALLOWED_TYPES = ['task', 'plan', 'bug', 'feature'];
+// Every bead imports as the dedicated `bead` tracker type (declared in the
+// manifest's importsAs). The bead's original bb issue_type is preserved in the
+// body footer rather than fanning out across task/plan/bug/feature.
+const ALLOWED_TYPES = ['bead'];
 
 export function activate(ctx: ActivateCtx) {
   const { log } = ctx.services;

@@ -41,13 +41,13 @@ Each bead maps to a tracker snapshot:
 | `status` | `open`→`to-do`, `in_progress`→`in-progress`, `blocked`→`blocked`, `deferred`→`to-do`, `closed`→`done` |
 | `priority` | bb `0`→`critical`, `1`→`high`, `2`→`medium`, `3`/`4`→`low` (accepts `P0`..`P4` too) |
 | `labels` | bead labels (e.g. `agent:work`) |
-| `primaryType` | `bug`→bug, `feature`→feature, `epic`/`goal`→plan, everything else→task |
+| `primaryType` | always the dedicated **`bead`** type (the bead's original `issue_type` is preserved in the body footer, e.g. `type ` + `` `reference` ``) |
 | author identity | bead `assignee` |
 | `urn` | `beads://<workspace>/<id>` (e.g. `beads://mx_brain/mx-123`) |
 | source URL | bead `source_url` if present, else the URN |
 | upstream timestamps | `created_at` / `updated_at` |
 
-`importsAs` in the manifest allows importing as `task`, `plan`, `bug`, or `feature`; the mapping above is the default, and you can re-type an item after import.
+`importsAs` in the manifest is `["bead"]`: every bead lands as the `bead` tracker type so beads stay together instead of fanning out across task/plan/bug/feature. That type must be registered in the target workspace (`.nimbalyst/trackers/bead.yaml`); a reference schema ships as [`bead.yaml`](./bead.yaml) in this extension — copy it into your workspace's `.nimbalyst/trackers/` and restart. You can still re-type an item after import.
 
 ## Configuration
 
