@@ -92,9 +92,30 @@ Because `fetch` receives only an `externalId` (no binding), the externalId encod
 
 ## Building
 
+This package is a monorepo citizen: it imports `@nimbalyst/extension-sdk`
+(a workspace package whose types resolve from its built `dist/`) and its tests
+import `vitest` (a root-level devDep). So `typecheck`/`test` only work once the
+**monorepo is installed and the SDK is built** — running `npm install` inside
+this subdirectory alone leaves the workspace unlinked and `tsc`/`vitest` unresolved
+(the sibling `github-issues-importer` has the same requirement).
+
+From the repo root:
+
 ```bash
+# 1. Install the whole monorepo (links workspaces, hoists vitest/typescript).
+#    ELECTRON_SKIP_BINARY_DOWNLOAD + --ignore-scripts skips the Electron binary
+#    and native builds, which aren't needed just to build an extension.
+ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm install --ignore-scripts
+
+# 2. Build the extension SDK so its dist/*.d.ts exists (this package resolves
+#    @nimbalyst/extension-sdk via its package.json `types: dist/index.d.ts`).
+npm run build --workspace @nimbalyst/extension-sdk
+
+# 3. Typecheck, test, and build this extension.
 cd packages/extensions/memexia-beads-importer
-npm run build      # builds both the inert renderer entry and the backend module
+npm run typecheck
+npx vitest run          # 20 tests over the pure mapping/parsing helpers
+npm run build           # builds both the inert renderer entry and the backend module
 ```
 
 `npm run build` runs two Vite passes:
@@ -102,7 +123,9 @@ npm run build      # builds both the inert renderer entry and the backend module
 - `vite build` — `src/index.ts` → `dist/index.js` (inert renderer `main`; the manifest requires one)
 - `vite build --config vite.backend.config.ts` — `src/backend.ts` → `dist/backend.js` (the utility-process backend)
 
-Other scripts: `npm run dev` (watch build), `npm run typecheck`, and `vitest` for `src/__tests__/backend.test.ts` (pure mapping/parsing helpers).
+> Note: `vite build` alone tends to succeed even standalone (it externalises
+> `@nimbalyst/*` and erases `import type`), but `npm run typecheck` and the tests
+> need steps 1–2 above. Other scripts: `npm run dev` (watch build).
 
 ## Architecture
 
